@@ -1,0 +1,14 @@
+-Dvideotoolbox-gl=enabled
+-Dcocoa=enabled
+-Dlcms2=enabled
+-Dlua=enabled
+-Djavascript=enabled
+-Dlibarchive=enabled
+-Dvapoursynth=enabled
+-Drubberband=enabled
+-Duchardet=enabled
+-Dmanpage-build=enabled
+-Dmacos-touchbar=enabled
+-Ddvdnav=enabled
+-Dcdda=enabled
+-Diconv=enabled
