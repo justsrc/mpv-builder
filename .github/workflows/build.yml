@@ -21,16 +21,52 @@ jobs:
         run: |
           brew update
           brew install \
-            meson \
-            pkg-config \
-            shaderc \
-            vulkan-loader \
-            molten-vk \
-            xxhash \
+            aom \
             autoconf \
             automake \
+            dav1d \
+            fontconfig \
+            freetype \
+            fribidi \
+            glslang \
+            gmp \
+            gnutls \
+            harfbuzz \
+            jpeg-xl \
+            lame \
+            libarchive \
+            libass \
+            libbluray \
+            libfdk-aac \
+            libgme \
+            libmodplug \
+            libogg \
+            libopus \
+            libplacebo \
+            librsvg \
+            libsmbclient \
+            libsoxr \
+            libssh \
             libtool \
-            fribidi
+            libvorbis \
+            libvpx \
+            libwebp \
+            libxml2 \
+            libzip \
+            libzimg \
+            meson \
+            molten-vk \
+            ninja \
+            openssl@3 \
+            pkg-config \
+            rav1e \
+            shaderc \
+            snappy \
+            svt-av1 \
+            vulkan-loader \
+            x264 \
+            x265 \
+            xxhash
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
