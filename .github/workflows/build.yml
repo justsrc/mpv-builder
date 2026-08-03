@@ -67,7 +67,8 @@ jobs:
             vulkan-loader \
             x264 \
             x265 \
-            xxhash
+            xxhash \
+            libvidstab
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
