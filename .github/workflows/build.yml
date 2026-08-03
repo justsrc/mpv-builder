@@ -38,14 +38,15 @@ jobs:
             libarchive \
             libass \
             libbluray \
+            libvmaf \
             libgme \
             libmodplug \
             libogg \
             opus \
             libplacebo \
             librsvg \
+            libsoxr \
             samba \
-            soxr \
             libssh \
             libtool \
             libvorbis \
