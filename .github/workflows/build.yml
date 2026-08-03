@@ -71,7 +71,7 @@ jobs:
             libvidstab \
             libcdio \
             libcdio-paranoia \
-            dvdnav
+            libdvdnav
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
