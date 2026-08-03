@@ -70,7 +70,7 @@ jobs:
             xxhash \
             libvidstab \
             libcdio \
-            libcdio-paranioa
+            libcdio-paranoia
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
