@@ -17,14 +17,46 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           brew update
-          brew install meson pkg-config glslang shaderc vulkan-loader molten-vk libdovi xxhash autoconf automake libtool
+          brew install \
+            meson \
+            ninja \
+            pkg-config \
+            glslang \
+            shaderc \
+            vulkan-loader \
+            molten-vk \
+            xxhash \
+            autoconf \
+            automake \
+            libtool
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-c
+        run: |
+          cargo install cargo-c --locked
+
+      - name: Build and install libdovi
+        run: |
+          git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
+          cd dovi_tool/dolby_vision
+          cargo cinstall --release --prefix /opt/homebrew
+
+      - name: Verify libdovi
+        run: |
+          pkg-config --modversion libdovi
+          pkg-config --cflags --libs libdovi
 
       - name: Clone mpv-build
         run: |
-          git clone https://github.com/mpv-player/mpv-build.git
+          git clone --depth=1 https://github.com/mpv-player/mpv-build.git
 
       - name: Copy custom options
         run: |
@@ -33,6 +65,8 @@ jobs:
 
       - name: Build mpv
         working-directory: mpv-build
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig
         run: |
           ./use-mpv-master
           ./rebuild
@@ -41,8 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mpv-build
-          path: |
-            mpv-build/build/**
+          path: mpv-build/build/**
 
       - name: Dump configure logs on failure
         if: failure()
