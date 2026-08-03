@@ -70,7 +70,7 @@ jobs:
             xxhash \
             libvidstab \
             libcdio \
-            libcdio-paranoia \ 
+            libcdio-paranoia \
             dvdnav
 
       - name: Install Rust
