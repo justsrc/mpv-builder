@@ -1,7 +1,13 @@
 name: Build mpv (master)
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: mpv-build
+  cancel-in-progress: true
 
 jobs:
   build:
