@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew update
-          brew install python meson ninja pkg-config
+          brew install meson pkg-config glslang shaderc vulkan-loader molten-vk libdovi xxhash autoconf automake libtool
 
       - name: Clone mpv-build
         run: |
