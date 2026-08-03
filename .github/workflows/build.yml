@@ -27,6 +27,7 @@ jobs:
             dav1d \
             fdk-aac \
             fontconfig \
+            mujs \
             freetype \
             fribidi \
             glslang \
