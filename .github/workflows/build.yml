@@ -35,7 +35,7 @@ jobs:
         working-directory: mpv-build
         run: |
           ./use-mpv-master
-          ./build
+          ./rebuild
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
