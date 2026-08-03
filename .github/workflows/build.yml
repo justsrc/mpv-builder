@@ -22,7 +22,6 @@ jobs:
           brew update
           brew install \
             meson \
-            ninja \
             pkg-config \
             glslang \
             shaderc \
@@ -49,6 +48,23 @@ jobs:
           cd dovi_tool/dolby_vision
           cargo cinstall --release --prefix /opt/homebrew
 
+      - name: Inspect libdovi installation
+        run: |
+          find /opt/homebrew -name "libdovi*" -print
+          find /opt/homebrew -name "*.pc" | grep dovi || true
+
+      - name: Inspect installation
+        run: |
+          echo "Homebrew prefix:"
+          brew --prefix
+
+          echo
+          echo "Searching for libdovi..."
+          find /opt/homebrew -iname "*dovi*" || true
+
+          echo
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+
       - name: Verify libdovi
         run: |
           pkg-config --modversion libdovi
@@ -71,11 +87,20 @@ jobs:
           ./use-mpv-master
           ./rebuild
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mpv-build
-          path: mpv-build/build/**
+      - name: Build mpv
+        working-directory: mpv-build
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig
+        run: |
+          ./use-mpv-master
+          ./rebuild
+
+          python3 TOOLS/osxbundle.py build/mpv
+
+      - name: Locate app bundle
+        working-directory: mpv-build
+        run: |
+          find . -name "*.app"
 
       - name: Dump configure logs on failure
         if: failure()
