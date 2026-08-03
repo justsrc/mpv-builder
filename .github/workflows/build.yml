@@ -36,39 +36,26 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-cargo-c-v1
 
       - name: Install cargo-c
         run: |
-          cargo install cargo-c --locked
+          if ! command -v cargo-c >/dev/null; then
+            cargo install cargo-c --locked
+          fi
 
-      - name: Build and install libdovi
+      - name: Verify dovi
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig
         run: |
-          git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
-          cd dovi_tool/dolby_vision
-          cargo cinstall --release --prefix /opt/homebrew
-
-      - name: Inspect libdovi installation
-        run: |
-          find /opt/homebrew -name "libdovi*" -print
-          find /opt/homebrew -name "*.pc" | grep dovi || true
-
-      - name: Inspect installation
-        run: |
-          echo "Homebrew prefix:"
-          brew --prefix
-
-          echo
-          echo "Searching for libdovi..."
-          find /opt/homebrew -iname "*dovi*" || true
-
-          echo
-          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
-
-      - name: Verify libdovi
-        run: |
-          pkg-config --modversion libdovi
-          pkg-config --cflags --libs libdovi
+          pkg-config --modversion dovi
+          pkg-config --cflags --libs dovi
 
       - name: Clone mpv-build
         run: |
@@ -78,14 +65,6 @@ jobs:
         run: |
           cp ffmpeg_options mpv-build/
           cp mpv_options mpv-build/
-
-      - name: Build mpv
-        working-directory: mpv-build
-        env:
-          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig
-        run: |
-          ./use-mpv-master
-          ./rebuild
 
       - name: Build mpv
         working-directory: mpv-build
