@@ -68,7 +68,8 @@ jobs:
             x264 \
             x265 \
             xxhash \
-            libvidstab
+            libvidstab \
+            libcdio
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
