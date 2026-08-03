@@ -23,14 +23,14 @@ jobs:
           brew install \
             meson \
             pkg-config \
-            glslang \
             shaderc \
             vulkan-loader \
             molten-vk \
             xxhash \
             autoconf \
             automake \
-            libtool
+            libtool \
+            fribidi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -55,13 +55,6 @@ jobs:
           git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
           cd dovi_tool/dolby_vision
           cargo cinstall --release --prefix /opt/homebrew
-
-      - name: Verify dovi
-        env:
-          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig
-        run: |
-          pkg-config --modversion dovi
-          pkg-config --cflags --libs dovi
 
       - name: Clone mpv-build
         run: |
