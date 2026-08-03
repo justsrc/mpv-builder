@@ -69,7 +69,8 @@ jobs:
             x265 \
             xxhash \
             libvidstab \
-            libcdio
+            libcdio \
+            libcdio-paranioa
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
