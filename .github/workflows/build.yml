@@ -25,6 +25,7 @@ jobs:
             autoconf \
             automake \
             dav1d \
+            fdk-aac \
             fontconfig \
             freetype \
             fribidi \
@@ -37,7 +38,6 @@ jobs:
             libarchive \
             libass \
             libbluray \
-            libfdk-aac \
             libgme \
             libmodplug \
             libogg \
