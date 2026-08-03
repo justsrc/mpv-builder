@@ -1,0 +1,44 @@
+name: Build mpv (master)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install python meson ninja pkg-config
+
+      - name: Clone mpv-build
+        run: |
+          git clone https://github.com/mpv-player/mpv-build.git
+
+      - name: Copy custom options
+        run: |
+          cp ffmpeg_options mpv-build/
+          cp mpv_options mpv-build/
+
+      - name: Build mpv
+        working-directory: mpv-build
+        run: |
+          ./use-mpv-master
+          ./build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv-build
+          path: |
+            mpv-build/build/**
+
+      - name: Dump configure logs on failure
+        if: failure()
+        run: |
+          find mpv-build -name "*.log" -exec cat {} \;
