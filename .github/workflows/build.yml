@@ -41,19 +41,19 @@ jobs:
             libgme \
             libmodplug \
             libogg \
-            libopus \
+            opus \
             libplacebo \
             librsvg \
-            libsmbclient \
-            libsoxr \
+            samba \
+            soxr \
             libssh \
             libtool \
             libvorbis \
             libvpx \
-            libwebp \
+            webp \
             libxml2 \
             libzip \
-            libzimg \
+            zimg \
             meson \
             molten-vk \
             ninja \
