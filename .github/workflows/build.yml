@@ -46,9 +46,15 @@ jobs:
 
       - name: Install cargo-c
         run: |
-          if ! command -v cargo-c >/dev/null; then
-            cargo install cargo-c --locked
+          if ! cargo cinstall --help >/dev/null 2>&1; then
+              cargo install cargo-c --locked
           fi
+
+      - name: Build and install libdovi
+        run: |
+          git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
+          cd dovi_tool/dolby_vision
+          cargo cinstall --release --prefix /opt/homebrew
 
       - name: Verify dovi
         env:
