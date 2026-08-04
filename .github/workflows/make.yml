@@ -1,6 +1,13 @@
-name: Build mpv (master)
+name: Build & Bundle mpv (master)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "ffmpeg_options"
+      - "mpv_options"
+      - "osxbundle.py"
+      - ".github/workflows/make.yml"
   workflow_dispatch:
 
 concurrency:
@@ -12,8 +19,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout this repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
@@ -80,11 +86,9 @@ jobs:
             libdvdread \
             icu4c@78
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
@@ -95,7 +99,7 @@ jobs:
       - name: Install cargo-c
         run: |
           if ! cargo cinstall --help >/dev/null 2>&1; then
-              cargo install cargo-c --locked
+            cargo install cargo-c --locked
           fi
 
       - name: Build and install libdovi
@@ -134,3 +138,89 @@ jobs:
         if: failure()
         run: |
           find mpv-build -name "*.log" -exec cat {} \;
+
+  bundle:
+    needs: build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build tree
+        uses: actions/download-artifact@v4
+        with:
+          name: mpv-build-tree
+          path: artifact
+
+      - name: Install runtime libraries
+        run: |
+          brew update
+          brew install \
+            aom \
+            dav1d \
+            fdk-aac \
+            fontconfig \
+            freetype \
+            fribidi \
+            gnutls \
+            harfbuzz \
+            jpeg-xl \
+            lame \
+            libarchive \
+            libass \
+            libbluray \
+            libcdio \
+            libcdio-paranoia \
+            libdvdnav \
+            libdvdread \
+            libgme \
+            libmodplug \
+            libplacebo \
+            libsoxr \
+            libssh \
+            libvidstab \
+            libvmaf \
+            libvorbis \
+            libvpx \
+            opus \
+            rav1e \
+            rubberband \
+            samba \
+            snappy \
+            svt-av1 \
+            uchardet \
+            vapoursynth \
+            webp \
+            x264 \
+            x265 \
+            zimg
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-c
+        run: |
+          if ! cargo cinstall --help >/dev/null 2>&1; then
+            cargo install cargo-c --locked
+          fi
+
+      - name: Build and install libdovi
+        run: |
+          git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
+          cd dovi_tool/dolby_vision
+          cargo cinstall --release --prefix /opt/homebrew
+
+      - name: Replace osxbundle.py
+        run: |
+          cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
+
+      - name: Bundle mpv.app
+        working-directory: artifact/mpv
+        run: |
+          python3 TOOLS/osxbundle.py build/mpv .
+
+      - name: Upload mpv.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv.app
+          path: artifact/mpv/build/mpv.app
