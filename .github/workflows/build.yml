@@ -1,0 +1,68 @@
+name: Build & Bundle mpv
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ffmpeg_options
+      - mpv_options
+      - osxbundle.py
+      - dylib_unhell.py
+      - .github/scripts/**
+      - .github/workflows/build.yml
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mpv-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-cargo-c-v1
+
+      - name: Install dependencies
+        run: bash .github/scripts/install-packages.sh
+
+      - name: Build and install libdovi
+        run: bash .github/scripts/build-libdovi.sh
+
+      - name: Build and bundle mpv
+        id: build
+        run: bash .github/scripts/build-mpv.sh
+
+      - name: Upload mpv.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv.app
+          path: ${{ steps.build.outputs.app_path }}
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv-nightly
+          path: |
+            ${{ steps.build.outputs.zip_path }}
+            ${{ steps.build.outputs.sha256_path }}
+
+      - name: Dump configure logs on failure
+        if: failure()
+        run: find mpv-build -name '*.log' -type f -print -exec cat {} + || true
