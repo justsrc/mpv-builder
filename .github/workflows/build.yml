@@ -73,7 +73,7 @@ jobs:
             libcdio \
             libcdio-paranoia \
             libdvdnav \
-            lua
+            luajit
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
