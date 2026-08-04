@@ -1,0 +1,62 @@
+name: Update Homebrew formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to sync
+        required: true
+        type: string
+      formula_kind:
+        description: Formula to update
+        required: true
+        default: nightly
+        type: choice
+        options: [nightly, release]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mpv-homebrew-update
+  cancel-in-progress: false
+
+jobs:
+  update-formula:
+    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve release details
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+          INPUT_FORMULA: ${{ inputs.formula_kind }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          printf 'tag=%s\n' "${INPUT_TAG:-$RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          printf 'formula=%s\n' "${INPUT_FORMULA:-release}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew formula
+        id: tap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+        run: |
+          python3 scripts/update_formula.py \
+            --release-tag "${{ steps.release.outputs.tag }}" \
+            --formula "${{ steps.release.outputs.formula }}"
+
+      - name: Write workflow summary
+        if: always()
+        env:
+          TAP_COMMIT_URL: ${{ steps.tap.outputs.tap_commit_url }}
+        run: |
+          {
+            echo '## Homebrew update summary'
+            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Commit: $TAP_COMMIT_URL" || echo '- No formula change was made.'
+          } >> "$GITHUB_STEP_SUMMARY"

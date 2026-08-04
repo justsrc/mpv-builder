@@ -1,0 +1,313 @@
+name: mpv nightly build
+
+on:
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_kind:
+        required: false
+        type: string
+        default: nightly
+      version:
+        required: false
+        type: string
+        default: ""
+      release_title:
+        required: false
+        type: string
+        default: ""
+      release_notes:
+        required: false
+        type: string
+        default: ""
+      draft:
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        required: false
+        type: boolean
+        default: false
+      update_versioned_formula:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mpv-build
+  cancel-in-progress: false
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      mpv_sha: ${{ steps.check.outputs.mpv_sha }}
+      mpv_build_sha: ${{ steps.check.outputs.mpv_build_sha }}
+      libdovi_sha: ${{ steps.check.outputs.libdovi_sha }}
+      previous_mpv_sha: ${{ steps.check.outputs.previous_mpv_sha }}
+      previous_mpv_build_sha: ${{ steps.check.outputs.previous_mpv_build_sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_upstream.py
+
+  build-and-release:
+    needs: check-upstream
+    if: ${{ github.event_name != 'schedule' || needs.check-upstream.outputs.should_build == 'true' }}
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify Apple Silicon runner
+        run: test "$(uname -m)" = arm64
+
+      - name: Set release metadata
+        id: release
+        env:
+          INPUT_RELEASE_KIND: ${{ inputs.release_kind }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RELEASE_TITLE: ${{ inputs.release_title }}
+          INPUT_RELEASE_NOTES: ${{ inputs.release_notes }}
+          INPUT_DRAFT: ${{ inputs.draft }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+          INPUT_UPDATE_VERSIONED_FORMULA: ${{ inputs.update_versioned_formula }}
+        run: |
+          if [[ "${INPUT_RELEASE_KIND:-nightly}" == release ]]; then
+            [[ -n "$INPUT_VERSION" ]] || { echo "A version is required." >&2; exit 1; }
+            tag="$INPUT_VERSION"
+            title="${INPUT_RELEASE_TITLE:-$tag}"
+            prerelease="$INPUT_PRERELEASE"
+            draft="$INPUT_DRAFT"
+            update_formula="$INPUT_UPDATE_VERSIONED_FORMULA"
+            if [[ "$draft" == true ]]; then
+              update_formula=false
+            fi
+            kind=release
+          else
+            tag=nightly
+            title='mpv nightly'
+            prerelease=true
+            draft=false
+            update_formula=true
+            kind=nightly
+          fi
+
+          {
+            printf 'tag=%s\n' "$tag"
+            printf 'title=%s\n' "$title"
+            printf 'kind=%s\n' "$kind"
+            printf 'prerelease=%s\n' "$prerelease"
+            printf 'draft=%s\n' "$draft"
+            printf 'update_formula=%s\n' "$update_formula"
+          } >> "$GITHUB_OUTPUT"
+          printf '%s' "$INPUT_RELEASE_NOTES" > "$RUNNER_TEMP/custom-release-notes.md"
+
+      - name: Record build start
+        run: |
+          {
+            printf 'BUILD_STARTED_AT=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            printf 'BUILD_STARTED_EPOCH=%s\n' "$(date +%s)"
+            printf 'GITHUB_RUN_URL=%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+          } >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo and libdovi source
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            ~/.cache/mpv-builder
+          key: ${{ runner.os }}-arm64-libdovi-v1-${{ hashFiles('scripts/build_libdovi.sh') }}
+
+      - name: Install dependencies and libdovi
+        id: libdovi
+        env:
+          LIBDOVI_SHA: ${{ needs.check-upstream.outputs.libdovi_sha }}
+        run: bash scripts/build_libdovi.sh
+
+      - name: Build and bundle mpv
+        id: build
+        env:
+          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+          MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
+        run: |
+          build_root="$RUNNER_TEMP/mpv-build"
+          rm -rf "$build_root"
+          mkdir -p "$build_root"
+          git -C "$build_root" init --quiet
+          git -C "$build_root" remote add origin https://github.com/mpv-player/mpv-build.git
+          git -C "$build_root" fetch --depth=1 origin "$MPV_BUILD_SHA"
+          git -C "$build_root" checkout --detach --quiet FETCH_HEAD
+          cp ffmpeg_options mpv_options "$build_root/"
+
+          pushd "$build_root" >/dev/null
+          export CFLAGS='-I/opt/homebrew/include'
+          export LDFLAGS='-L/opt/homebrew/lib'
+          export PKG_CONFIG_PATH='/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/glslang/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig'
+          ./use-mpv-master
+          git -C mpv fetch --depth=1 origin "$MPV_SHA"
+          git -C mpv checkout --detach --quiet FETCH_HEAD
+          SOURCE_DATE_EPOCH="$(git -C mpv show -s --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+          printf 'SOURCE_DATE_EPOCH=%s\n' "$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
+          ./rebuild
+
+          mkdir -p mpv/TOOLS
+          cp "$GITHUB_WORKSPACE/osxbundle.py" mpv/TOOLS/osxbundle.py
+          cp "$GITHUB_WORKSPACE/dylib_unhell.py" mpv/TOOLS/dylib_unhell.py
+          pushd mpv >/dev/null
+          python3 TOOLS/osxbundle.py build/mpv .
+          printf 'bundle_path=%s\n' "$build_root/mpv/build/mpv.app" >> "$GITHUB_OUTPUT"
+          popd >/dev/null
+          popd >/dev/null
+
+      - name: Package release assets and metadata
+        id: package
+        env:
+          BUNDLE_PATH: ${{ steps.build.outputs.bundle_path }}
+          ARCHIVE_PATH: ${{ runner.temp }}/mpv-macos-arm64.zip
+          CHECKSUMS_PATH: ${{ runner.temp }}/SHA256SUMS.txt
+          METADATA_PATH: ${{ runner.temp }}/build-metadata.json
+          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+          MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
+          LIBDOVI_SHA: ${{ steps.libdovi.outputs.libdovi_sha }}
+        run: bash scripts/create_checksums.sh
+
+      - name: Generate release notes
+        env:
+          PREVIOUS_MPV_SHA: ${{ needs.check-upstream.outputs.previous_mpv_sha }}
+          PREVIOUS_MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.previous_mpv_build_sha }}
+          RELEASE_TITLE: ${{ steps.release.outputs.title }}
+        run: |
+          python3 scripts/release_notes.py \
+            --metadata "${{ steps.package.outputs.metadata_path }}" \
+            --output "$RUNNER_TEMP/release-notes.md" \
+            --title "$RELEASE_TITLE" \
+            --previous-mpv "$PREVIOUS_MPV_SHA" \
+            --previous-mpv-build "$PREVIOUS_MPV_BUILD_SHA" \
+            --custom-notes "$(<"$RUNNER_TEMP/custom-release-notes.md")"
+
+      - name: Create or update GitHub release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_KIND: ${{ steps.release.outputs.kind }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.release.outputs.title }}
+          RELEASE_DRAFT: ${{ steps.release.outputs.draft }}
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
+          CHECKSUMS_PATH: ${{ steps.package.outputs.checksums_path }}
+          METADATA_PATH: ${{ steps.package.outputs.metadata_path }}
+        run: |
+          release_url=
+          release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if [[ "$RELEASE_KIND" == release ]]; then
+              echo "Versioned release $RELEASE_TAG already exists." >&2
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" --clobber
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            args=(--title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md")
+            [[ "$RELEASE_DRAFT" == true ]] && args+=(--draft)
+            [[ "$RELEASE_PRERELEASE" == true ]] && args+=(--prerelease)
+            gh release create "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" "${args[@]}"
+          fi
+          printf 'release_url=%s\n' "$release_url" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew formula
+        id: tap
+        if: ${{ steps.release.outputs.update_formula == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          FORMULA_KIND: ${{ steps.release.outputs.kind }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+          MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
+        run: |
+          python3 scripts/update_formula.py \
+            --release-tag "$RELEASE_TAG" \
+            --formula "$FORMULA_KIND" \
+            --sha256 "$SHA256" \
+            --mpv-sha "$MPV_SHA" \
+            --mpv-build-sha "$MPV_BUILD_SHA"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv-${{ steps.release.outputs.tag }}-macos-arm64
+          path: |
+            ${{ steps.build.outputs.bundle_path }}
+            ${{ steps.package.outputs.archive_path }}
+            ${{ steps.package.outputs.checksums_path }}
+            ${{ steps.package.outputs.metadata_path }}
+          retention-days: 30
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv-build-logs-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/mpv-build/**/*.log
+            ${{ runner.temp }}/mpv-build/**/meson-logs/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write workflow summary
+        if: always()
+        env:
+          CHANGED: ${{ needs.check-upstream.outputs.should_build }}
+          DURATION: ${{ steps.package.outputs.duration_seconds }}
+          ARTIFACT_SIZE: ${{ steps.package.outputs.artifact_size_bytes }}
+          RELEASE_URL: ${{ steps.publish.outputs.release_url }}
+          TAP_COMMIT_URL: ${{ steps.tap.outputs.tap_commit_url }}
+          WORKFLOW_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo '## mpv build summary'
+            echo
+            echo "- Changed: ${CHANGED:-unknown}"
+            echo "- Built: $([[ -n "${DURATION:-}" ]] && echo yes || echo no)"
+            echo '- Skipped: no'
+            echo "- Status: $WORKFLOW_STATUS"
+            [[ -n "${DURATION:-}" ]] && echo "- Duration: ${DURATION} seconds"
+            [[ -n "${ARTIFACT_SIZE:-}" ]] && echo "- Artifact size: ${ARTIFACT_SIZE} bytes"
+            [[ -n "${RELEASE_URL:-}" ]] && echo "- Release: $RELEASE_URL"
+            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Homebrew commit: $TAP_COMMIT_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  summary-for-skipped-nightly:
+    needs: check-upstream
+    if: ${{ github.event_name == 'schedule' && needs.check-upstream.outputs.should_build != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write workflow summary
+        run: |
+          {
+            echo '## mpv nightly summary'
+            echo
+            echo '- Changed: no'
+            echo '- Built: no'
+            echo '- Skipped: yes — mpv and mpv-build revisions match the rolling nightly release.'
+          } >> "$GITHUB_STEP_SUMMARY"

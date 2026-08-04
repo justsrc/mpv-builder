@@ -1,0 +1,48 @@
+name: Versioned mpv release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag, for example v0.41.0-custom.1
+        required: true
+        type: string
+      release_title:
+        description: Release title; defaults to the version
+        required: false
+        type: string
+      release_notes:
+        description: Optional notes appended after the generated changelog
+        required: false
+        type: string
+      draft:
+        description: Create the release as a draft
+        required: true
+        default: false
+        type: boolean
+      prerelease:
+        description: Mark the release as a prerelease
+        required: true
+        default: false
+        type: boolean
+      update_homebrew:
+        description: Also update the versioned Homebrew formula
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    uses: ./.github/workflows/nightly.yml
+    with:
+      release_kind: release
+      version: ${{ inputs.version }}
+      release_title: ${{ inputs.release_title }}
+      release_notes: ${{ inputs.release_notes }}
+      draft: ${{ inputs.draft }}
+      prerelease: ${{ inputs.prerelease }}
+      update_versioned_formula: ${{ inputs.update_homebrew }}
+    secrets: inherit
