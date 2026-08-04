@@ -126,7 +126,7 @@ def generate_cask_content(
         f'  desc "{description}"\n'
         f'  homepage "https://github.com/{repo}"\n'
         "\n"
-        '  depends_on macos: ">= :big_sur"\n'
+        '  depends_on macos: :big_sur\n'
         "  depends_on arch: :arm64\n"
         "\n"
         '  app "mpv.app"\n'
