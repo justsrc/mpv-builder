@@ -79,7 +79,8 @@ jobs:
             lcms2 \
             uchardet \
             vapoursynth \
-            libdvdread
+            libdvdread \
+            icu4c@78
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
