@@ -125,22 +125,14 @@ jobs:
           ./use-mpv-master
           ./rebuild
 
-      - name: Bundle mpv.app
-        working-directory: mpv-build
-        run: |
-          cd mpv
-          cat TOOLS/osxbundle.py
-
-      - name: Locate app bundle
-        working-directory: mpv-build
-        run: |
-          find . -name "*.app"
+      - name: Upload build tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv-build-tree
+          path: mpv-build
+          retention-days: 30
 
       - name: Dump configure logs on failure
         if: failure()
         run: |
-          echo "===== FFmpeg config.log ====="
-          find mpv-build -path "*/ffbuild/config.log" -exec sh -c '
-            echo "---- {} ----"
-            grep -n -A20 -B20 "vidstab" "{}" || cat "{}"
-          ' \;
+          find mpv-build -name "*.log" -exec cat {} \;

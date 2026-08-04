@@ -1,0 +1,48 @@
+name: Bundle mpv.app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download latest build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+
+          RUN_ID=$(gh run list \
+            --workflow "Build mpv" \
+            --branch main \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+
+          echo "Latest build run: $RUN_ID"
+
+          gh run download "$RUN_ID" \
+            --name mpv-build-tree
+
+      - name: Bundle mpv.app
+        working-directory: mpv-build/mpv
+        run: |
+          python3 TOOLS/osxbundle.py build/mpv
+
+      - name: Locate app
+        run: |
+          find mpv-build -name "*.app"
+
+      - name: Upload mpv.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv.app
+          path: |
+            mpv-build/**/*.app
