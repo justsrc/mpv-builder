@@ -36,6 +36,7 @@ metadata = {
     "build_finished_at": datetime.fromtimestamp(int(os.environ["finished_epoch"]), UTC).isoformat(),
     "build_started_at": os.environ["BUILD_STARTED_AT"],
     "build_duration_seconds": int(os.environ["duration_seconds"]),
+    "cargo_c_sha": os.environ["CARGO_C_SHA"],
     "compiler": compiler.stdout.splitlines()[0],
     "github_actions_run_url": os.environ["GITHUB_RUN_URL"],
     "libdovi_sha": os.environ["LIBDOVI_SHA"],

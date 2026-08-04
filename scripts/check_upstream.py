@@ -15,6 +15,7 @@ UPSTREAMS = {
     "mpv": "https://github.com/mpv-player/mpv.git",
     "mpv_build": "https://github.com/mpv-player/mpv-build.git",
     "libdovi": "https://github.com/quietvoid/dovi_tool.git",
+    "cargo_c": "https://github.com/lu-zero/cargo-c.git",
 }
 
 
@@ -73,6 +74,7 @@ def main() -> int:
         "mpv_sha": current["mpv"],
         "mpv_build_sha": current["mpv_build"],
         "libdovi_sha": current["libdovi"],
+        "cargo_c_sha": current["cargo_c"],
         "previous_mpv_sha": previous_mpv,
         "previous_mpv_build_sha": previous_mpv_build,
         "checked_at": timestamp,

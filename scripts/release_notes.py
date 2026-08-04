@@ -52,6 +52,7 @@ def main() -> int:
 - mpv SHA: {metadata['mpv_sha']}
 - mpv-build SHA: {metadata['mpv_build_sha']}
 - libdovi SHA: {metadata['libdovi_sha']}
+- cargo-c SHA: {metadata['cargo_c_sha']}
 - SHA256 (`{metadata['artifact']}`): `{metadata['sha256']}`
 
 ## mpv upstream changes

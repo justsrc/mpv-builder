@@ -53,6 +53,7 @@ jobs:
       mpv_sha: ${{ steps.check.outputs.mpv_sha }}
       mpv_build_sha: ${{ steps.check.outputs.mpv_build_sha }}
       libdovi_sha: ${{ steps.check.outputs.libdovi_sha }}
+      cargo_c_sha: ${{ steps.check.outputs.cargo_c_sha }}
       previous_mpv_sha: ${{ steps.check.outputs.previous_mpv_sha }}
       previous_mpv_build_sha: ${{ steps.check.outputs.previous_mpv_build_sha }}
 
@@ -139,13 +140,18 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-          key: ${{ runner.os }}-arm64-cargo-c-v1
+            ~/.cargo/.cargo-c-source-sha
+          key: ${{ runner.os }}-arm64-cargo-c-v2-${{ needs.check-upstream.outputs.cargo_c_sha }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cargo-c-v2-
 
       - name: Cache libdovi source and build artifacts
         uses: actions/cache@v4
         with:
-          path: ~/.cache/mpv-builder/dovi_tool
-          key: ${{ runner.os }}-arm64-libdovi-build-v1-${{ needs.check-upstream.outputs.libdovi_sha }}
+          path: |
+            ~/.cache/mpv-builder/dovi_tool
+            ~/.cache/mpv-builder/libdovi-install
+          key: ${{ runner.os }}-arm64-libdovi-build-v2-${{ needs.check-upstream.outputs.libdovi_sha }}
 
       - name: Prepare Homebrew runner
         run: bash scripts/build_libdovi.sh prepare-homebrew
@@ -154,6 +160,8 @@ jobs:
         run: bash scripts/build_libdovi.sh brew-dependencies
 
       - name: Install cargo-c
+        env:
+          CARGO_C_SHA: ${{ needs.check-upstream.outputs.cargo_c_sha }}
         run: bash scripts/build_libdovi.sh cargo-c
 
       - name: Build libdovi
@@ -218,6 +226,7 @@ jobs:
           MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
           MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
           LIBDOVI_SHA: ${{ steps.libdovi.outputs.libdovi_sha }}
+          CARGO_C_SHA: ${{ needs.check-upstream.outputs.cargo_c_sha }}
         run: bash scripts/create_checksums.sh
 
       - name: Generate release notes
