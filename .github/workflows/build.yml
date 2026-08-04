@@ -124,7 +124,11 @@ jobs:
           ./use-mpv-master
           ./rebuild
 
-          python3 TOOLS/osxbundle.py build/mpv
+      - name: Show directory tree
+        working-directory: mpv-build
+        run: |
+          pwd
+          find . -maxdepth 3 | sort
 
       - name: Locate app bundle
         working-directory: mpv-build
