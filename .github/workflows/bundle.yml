@@ -18,6 +18,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mkdir artifact
 
           RUN_ID=$(gh run list \
             --workflow "Build mpv (master)" \
@@ -29,20 +30,24 @@ jobs:
           echo "Latest build run: $RUN_ID"
 
           gh run download "$RUN_ID" \
-            --name mpv-build-tree
+            --name mpv-build-tree \
+            --dir artifact
+
+      - name: Inspect artifact
+        run: |
+          find artifact -maxdepth 3 | sort
 
       - name: Bundle mpv.app
-        working-directory: mpv-build/mpv
+        working-directory: artifact/mpv-build/mpv
         run: |
           python3 TOOLS/osxbundle.py build/mpv
 
       - name: Locate app
         run: |
-          find mpv-build -name "*.app"
+          find artifact/mpv-build -name "*.app"
 
       - name: Upload mpv.app
         uses: actions/upload-artifact@v4
         with:
           name: mpv.app
-          path: |
-            mpv-build/**/*.app
+          path: artifact/mpv-build/**/*.app
