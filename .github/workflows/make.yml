@@ -166,6 +166,7 @@ jobs:
             harfbuzz \
             jpeg-xl \
             lame \
+            mujs \
             libarchive \
             libass \
             libbluray \
@@ -198,6 +199,14 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-cargo-c-v1
+
       - name: Install cargo-c
         run: |
           if ! cargo cinstall --help >/dev/null 2>&1; then
@@ -213,14 +222,3 @@ jobs:
       - name: Replace osxbundle.py
         run: |
           cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
-
-      - name: Bundle mpv.app
-        working-directory: artifact/mpv
-        run: |
-          python3 TOOLS/osxbundle.py build/mpv .
-
-      - name: Upload mpv.app
-        uses: actions/upload-artifact@v4
-        with:
-          name: mpv.app
-          path: artifact/mpv/build/mpv.app
