@@ -7,7 +7,13 @@ on:
       - "ffmpeg_options"
       - "mpv_options"
       - "osxbundle.py"
+      - "dylib_unhell.py"
       - ".github/workflows/make.yml"
+
+  schedule:
+    # 01:00 Indian Standard Time = 19:30 UTC (previous day)
+    - cron: "30 19 * * *"
+
   workflow_dispatch:
 
 concurrency:
@@ -15,7 +21,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      mpv_sha: ${{ steps.check.outputs.mpv_sha }}
+      mpv_build_sha: ${{ steps.check.outputs.mpv_build_sha }}
+
+    steps:
+      - id: check
+        run: |
+          MPV_SHA=$(git ls-remote https://github.com/mpv-player/mpv.git HEAD | cut -f1)
+          MPV_BUILD_SHA=$(git ls-remote https://github.com/mpv-player/mpv-build.git HEAD | cut -f1)
+
+          echo "mpv_sha=$MPV_SHA" >> "$GITHUB_OUTPUT"
+          echo "mpv_build_sha=$MPV_BUILD_SHA" >> "$GITHUB_OUTPUT"
+
+          # For now always build.
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
     runs-on: macos-latest
 
     steps:
