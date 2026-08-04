@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Refresh Homebrew once, then install the shared dependency set used by both the build and release flows.
+# Refresh Homebrew once, then install the dependencies used by the build.
 brew update
 
 brew install \
@@ -20,7 +20,6 @@ brew install \
   glslang \
   harfbuzz \
   icu4c@78 \
-  jpeg-turbo \
   jpeg-xl \
   lame \
   lcms2 \
@@ -31,22 +30,20 @@ brew install \
   libcdio-paranoia \
   libdvdnav \
   libdvdread \
-  libgme \
   libmodplug \
   libogg \
   libplacebo \
   libsoxr \
   libssh \
   libtool \
-  libunibreak \
   libvidstab \
   libvmaf \
   libvorbis \
   libvpx \
   libxml2 \
   libzip \
+  librsvg \
   luajit \
-  lz4 \
   meson \
   molten-vk \
   mujs \
