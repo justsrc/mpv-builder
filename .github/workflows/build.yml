@@ -37,7 +37,6 @@ jobs:
             harfbuzz \
             jpeg-xl \
             lame \
-            libarchive \
             libass \
             libbluray \
             libvmaf \
@@ -92,3 +91,48 @@ jobs:
           if ! cargo cinstall --help >/dev/null 2>&1; then
               cargo install cargo-c --locked
           fi
+
+      - name: Build and install libdovi
+        run: |
+          git clone --depth=1 https://github.com/quietvoid/dovi_tool.git
+          cd dovi_tool/dolby_vision
+          cargo cinstall --release --prefix /opt/homebrew
+
+      - name: Clone mpv-build
+        run: |
+          git clone --depth=1 https://github.com/mpv-player/mpv-build.git
+
+      - name: Copy custom options
+        run: |
+          cp ffmpeg_options mpv-build/
+          cp mpv_options mpv-build/
+
+      - name: Build mpv
+        working-directory: mpv-build
+        env:
+          CFLAGS: -I/opt/homebrew/include
+          LDFLAGS: -L/opt/homebrew/lib
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/glslang/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig
+        run: |
+          ./use-mpv-master
+          ./rebuild
+
+          python3 TOOLS/osxbundle.py build/mpv
+
+      - name: Locate app bundle
+        working-directory: mpv-build
+        run: |
+          find . -name "*.app"
+
+      - name: Dump configure logs on failure
+        if: failure()
+        run: |
+          echo "===== Searching for vidstab ====="
+          grep -R -n -A20 -B20 "vidstab" mpv-build 2>/dev/null || true
+
+          echo
+          echo "===== FFmpeg config.log ====="
+          find mpv-build -path "*/ffbuild/config.log" -exec sh -c '
+            echo "---- {} ----"
+            grep -n -A20 -B20 "vidstab" "{}" || cat "{}"
+          ' \;
