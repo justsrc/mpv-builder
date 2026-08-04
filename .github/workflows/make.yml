@@ -194,7 +194,18 @@ jobs:
             webp \
             x264 \
             x265 \
-            zimg
+            zimg \
+            libunibreak \
+            libogg \
+            libtool \
+            libxml2 \
+            molten-vk \
+            mujs \
+            shaderc \
+            vulkan-loader \
+            xxhash \
+            lcms2 \
+            icu4c@78
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
