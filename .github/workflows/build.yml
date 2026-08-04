@@ -23,6 +23,7 @@ jobs:
           brew install \
             aom \
             autoconf \
+            libarchive \
             automake \
             dav1d \
             fdk-aac \
