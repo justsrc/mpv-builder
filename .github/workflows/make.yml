@@ -162,11 +162,14 @@ jobs:
             fontconfig \
             freetype \
             fribidi \
+            game-music-emu \
             gnutls \
             harfbuzz \
+            icu4c@78 \
+            jpeg-turbo \
             jpeg-xl \
             lame \
-            mujs \
+            lcms2 \
             libarchive \
             libass \
             libbluray \
@@ -174,38 +177,37 @@ jobs:
             libcdio-paranoia \
             libdvdnav \
             libdvdread \
-            libgme \
             libmodplug \
+            libogg \
             libplacebo \
             libsoxr \
             libssh \
+            libtool \
+            libunibreak \
             libvidstab \
             libvmaf \
             libvorbis \
             libvpx \
+            libxcb \
+            libxml2 \
+            luajit \
+            molten-vk \
+            mujs \
             opus \
             rav1e \
             rubberband \
             samba \
+            shaderc \
             snappy \
             svt-av1 \
             uchardet \
             vapoursynth \
+            vulkan-loader \
             webp \
             x264 \
             x265 \
-            zimg \
-            libunibreak \
-            libogg \
-            libtool \
-            libxml2 \
-            molten-vk \
-            mujs \
-            shaderc \
-            vulkan-loader \
             xxhash \
-            lcms2 \
-            icu4c@78
+            zimg
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
