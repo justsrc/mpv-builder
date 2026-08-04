@@ -33,6 +33,14 @@ jobs:
             --name mpv-build-tree \
             --dir artifact
 
+      - name: Replace osxbundle.py
+        run: |
+          cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
+
+      - name: Verify replacement
+        run: |
+          grep -n "os.makedirs" artifact/mpv/TOOLS/osxbundle.py
+
       - name: Bundle mpv.app
         working-directory: artifact/mpv
         run: |
