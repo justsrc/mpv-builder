@@ -177,6 +177,7 @@ jobs:
             libcdio-paranoia \
             libdvdnav \
             libdvdread \
+            libgme \
             libmodplug \
             libogg \
             libplacebo \
