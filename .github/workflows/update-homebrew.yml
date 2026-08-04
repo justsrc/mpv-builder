@@ -1,4 +1,4 @@
-name: Update Homebrew formula
+name: Update Homebrew cask
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ on:
         description: Release tag to sync
         required: true
         type: string
-      formula_kind:
-        description: Formula to update
+      cask_channel:
+        description: Cask channel to update
         required: true
         default: nightly
         type: choice
@@ -22,22 +22,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  update-formula:
+  update-cask:
     runs-on: ubuntu-latest
     steps:
       - name: Check out pipeline source
         uses: actions/checkout@v7
 
-      - name: Resolve release target
+      - name: Resolve cask release target
         id: release
         env:
           INPUT_TAG: ${{ inputs.release_tag }}
-          INPUT_FORMULA: ${{ inputs.formula_kind }}
+          INPUT_CASK: ${{ inputs.cask_channel }}
         run: |
           printf 'tag=%s\n' "$INPUT_TAG" >> "$GITHUB_OUTPUT"
-          printf 'formula=%s\n' "$INPUT_FORMULA" >> "$GITHUB_OUTPUT"
+          printf 'cask=%s\n' "$INPUT_CASK" >> "$GITHUB_OUTPUT"
 
-      - name: Update Homebrew formula
+      - name: Update Homebrew cask
         id: tap
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,7 +46,7 @@ jobs:
         run: |
           python3 scripts/update_formula.py \
             --release-tag "${{ steps.release.outputs.tag }}" \
-            --formula "${{ steps.release.outputs.formula }}"
+            --cask "${{ steps.release.outputs.cask }}"
 
       - name: Write workflow summary
         if: always()
@@ -54,6 +54,6 @@ jobs:
           TAP_COMMIT_URL: ${{ steps.tap.outputs.tap_commit_url }}
         run: |
           {
-            echo '## Homebrew update summary'
-            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Commit: $TAP_COMMIT_URL" || echo '- No formula change was made.'
+            echo '## Homebrew cask update summary'
+            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Commit: $TAP_COMMIT_URL" || echo '- No cask change was made.'
           } >> "$GITHUB_STEP_SUMMARY"

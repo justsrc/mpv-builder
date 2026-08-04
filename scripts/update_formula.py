@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update a Homebrew formula from a published GitHub release asset."""
+"""Update a Homebrew cask from a published GitHub release asset."""
 
 from __future__ import annotations
 
@@ -25,10 +25,11 @@ def release_asset_url(release_tag: str) -> str:
     raise RuntimeError(f"mpv-macos-arm64.zip is missing from release {release_tag}")
 
 
-def verified_release_checksum(release_tag: str, expected_checksum: str | None) -> str:
+def verified_release_assets(release_tag: str, expected_checksum: str | None) -> tuple[str, dict[str, object]]:
     with tempfile.TemporaryDirectory() as directory:
         run(["gh", "release", "download", release_tag, "--pattern", "SHA256SUMS.txt", "--dir", directory])
         run(["gh", "release", "download", release_tag, "--pattern", "mpv-macos-arm64.zip", "--dir", directory])
+        run(["gh", "release", "download", release_tag, "--pattern", "build-metadata.json", "--dir", directory])
         checksum_file = Path(directory, "SHA256SUMS.txt")
         recorded_checksum = checksum_file.read_text(encoding="utf-8").split()[0]
         checksum = expected_checksum or recorded_checksum
@@ -41,7 +42,8 @@ def verified_release_checksum(release_tag: str, expected_checksum: str | None) -
                 digest.update(chunk)
         if digest.hexdigest() != checksum:
             raise RuntimeError("Downloaded mpv-macos-arm64.zip failed SHA256 verification")
-        return checksum
+        metadata = json.loads(Path(directory, "build-metadata.json").read_text(encoding="utf-8"))
+        return checksum, metadata
 
 
 def write_output(name: str, value: str) -> None:
@@ -54,7 +56,7 @@ def write_output(name: str, value: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--release-tag", required=True)
-    parser.add_argument("--formula", choices=("nightly", "release"), required=True)
+    parser.add_argument("--cask", choices=("nightly", "release"), required=True)
     parser.add_argument("--sha256")
     parser.add_argument("--mpv-sha", default="")
     parser.add_argument("--mpv-build-sha", default="")
@@ -67,20 +69,22 @@ def main() -> int:
 
     tap_repo = os.getenv("TAP_REPO") or "Justin24506/homebrew-tap"
     archive_url = release_asset_url(args.release_tag)
-    checksum = verified_release_checksum(args.release_tag, args.sha256)
+    checksum, metadata = verified_release_assets(args.release_tag, args.sha256)
 
-    if args.formula == "nightly":
-        formula_path = Path("Formula/mpv-nightly.rb")
-        formula_name = "MpvNightly"
+    if args.cask == "nightly":
+        cask_path = Path("Casks/mpv@nightly.rb")
+        legacy_formula_path = Path("Formula/mpv-nightly.rb")
+        cask_token = "mpv@nightly"
         description = "Rolling nightly build of mpv"
-        version = "nightly"
-        commit_subject = "Nightly update"
+        version = f"nightly-{metadata['workflow_number']}"
+        commit_subject = "Nightly cask update"
     else:
-        formula_path = Path("Formula/mpv.rb")
-        formula_name = "Mpv"
+        cask_path = Path("Casks/mpv.rb")
+        legacy_formula_path = Path("Formula/mpv.rb")
+        cask_token = "mpv"
         description = "Custom mpv release"
-        version = args.release_tag
-        commit_subject = f"Update Mpv to {args.release_tag}"
+        version = args.release_tag.removeprefix("v")
+        commit_subject = f"Update mpv cask to {args.release_tag}"
 
     with tempfile.TemporaryDirectory() as directory:
         tap_directory = Path(directory, "tap")
@@ -90,27 +94,30 @@ def main() -> int:
             ["git", "remote", "set-url", "origin", f"https://x-access-token:{quote(token)}@github.com/{tap_repo}.git"],
             cwd=tap_directory,
         )
-        formula_file = tap_directory / formula_path
-        formula_file.parent.mkdir(parents=True, exist_ok=True)
-        formula_file.write_text(
-            f'''class {formula_name} < Formula
+        cask_file = tap_directory / cask_path
+        cask_file.parent.mkdir(parents=True, exist_ok=True)
+        cask_file.write_text(
+            f'''cask "{cask_token}" do
+  version "{version}"
+  sha256 "{checksum}"
+
+  url "{archive_url}"
+  name "mpv"
   desc "{description}"
   homepage "https://github.com/{os.environ['GITHUB_REPOSITORY']}"
-  url "{archive_url}"
-  sha256 "{checksum}"
-  version "{version}"
 
-  def install
-    prefix.install Dir["*"]
-  end
+  depends_on arch: :arm64
+
+  app "mpv.app"
 end
 ''',
             encoding="utf-8",
         )
-        run(["git", "add", str(formula_path)], cwd=tap_directory)
+        (tap_directory / legacy_formula_path).unlink(missing_ok=True)
+        run(["git", "add", "--all", str(cask_path), str(legacy_formula_path)], cwd=tap_directory)
         changed = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=tap_directory).returncode != 0
         if not changed:
-            print("Homebrew formula already matches the release.")
+            print("Homebrew cask already matches the release.")
             return 0
 
         run(["git", "config", "user.name", "github-actions[bot]"], cwd=tap_directory)

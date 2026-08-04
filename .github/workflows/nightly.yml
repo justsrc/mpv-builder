@@ -30,7 +30,7 @@ on:
         required: false
         type: boolean
         default: false
-      update_versioned_formula:
+      update_versioned_cask:
         required: false
         type: boolean
         default: false
@@ -91,7 +91,7 @@ jobs:
           INPUT_RELEASE_TITLE: ${{ inputs.release_title }}
           INPUT_DRAFT: ${{ inputs.draft }}
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
-          INPUT_UPDATE_VERSIONED_FORMULA: ${{ inputs.update_versioned_formula }}
+          INPUT_UPDATE_VERSIONED_CASK: ${{ inputs.update_versioned_cask }}
         run: |
           if [[ "${INPUT_RELEASE_KIND:-nightly}" == release ]]; then
             [[ -n "$INPUT_VERSION" ]] || { echo "A version is required." >&2; exit 1; }
@@ -99,9 +99,9 @@ jobs:
             title="${INPUT_RELEASE_TITLE:-$tag}"
             prerelease="$INPUT_PRERELEASE"
             draft="$INPUT_DRAFT"
-            update_formula="$INPUT_UPDATE_VERSIONED_FORMULA"
+            update_cask="$INPUT_UPDATE_VERSIONED_CASK"
             if [[ "$draft" == true ]]; then
-              update_formula=false
+              update_cask=false
             fi
             kind=release
           else
@@ -109,7 +109,7 @@ jobs:
             title='mpv nightly'
             prerelease=true
             draft=false
-            update_formula=true
+            update_cask=true
             kind=nightly
           fi
 
@@ -119,7 +119,7 @@ jobs:
             printf 'kind=%s\n' "$kind"
             printf 'prerelease=%s\n' "$prerelease"
             printf 'draft=%s\n' "$draft"
-            printf 'update_formula=%s\n' "$update_formula"
+            printf 'update_cask=%s\n' "$update_cask"
           } >> "$GITHUB_OUTPUT"
 
       - name: Record build start
@@ -272,26 +272,30 @@ jobs:
             args=(--title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md")
             [[ "$RELEASE_DRAFT" == true ]] && args+=(--draft)
             [[ "$RELEASE_PRERELEASE" == true ]] && args+=(--prerelease)
-            gh release create "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" "${args[@]}"
+            gh release create "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" --target "$GITHUB_SHA" "${args[@]}"
+          fi
+          if [[ "$RELEASE_KIND" == nightly ]]; then
+            git tag --force "$RELEASE_TAG" "$GITHUB_SHA"
+            git push --force origin "refs/tags/$RELEASE_TAG"
           fi
           printf 'release_url=%s\n' "$release_url" >> "$GITHUB_OUTPUT"
 
-      - name: Update Homebrew formula
+      - name: Update Homebrew cask
         id: tap
-        if: ${{ steps.release.outputs.update_formula == 'true' }}
+        if: ${{ steps.release.outputs.update_cask == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          FORMULA_KIND: ${{ steps.release.outputs.kind }}
+          CASK_CHANNEL: ${{ steps.release.outputs.kind }}
           SHA256: ${{ steps.package.outputs.sha256 }}
           MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
           MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
         run: |
           python3 scripts/update_formula.py \
             --release-tag "$RELEASE_TAG" \
-            --formula "$FORMULA_KIND" \
+            --cask "$CASK_CHANNEL" \
             --sha256 "$SHA256" \
             --mpv-sha "$MPV_SHA" \
             --mpv-build-sha "$MPV_BUILD_SHA"

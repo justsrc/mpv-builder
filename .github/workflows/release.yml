@@ -26,7 +26,7 @@ on:
         default: false
         type: boolean
       update_homebrew:
-        description: Also update the versioned Homebrew formula
+        description: Also update the versioned Homebrew cask
         required: true
         default: false
         type: boolean
@@ -58,5 +58,5 @@ jobs:
       release_notes: ${{ inputs.release_notes }}
       draft: ${{ inputs.draft }}
       prerelease: ${{ inputs.prerelease }}
-      update_versioned_formula: ${{ inputs.update_homebrew }}
+      update_versioned_cask: ${{ inputs.update_homebrew }}
     secrets: inherit
