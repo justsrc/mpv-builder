@@ -1,0 +1,53 @@
+name: Homebrew tap update
+
+on:
+  # Update the tap manually or after a stable release is published.
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to sync into the tap
+        required: true
+        type: string
+      formula_kind:
+        description: Which formula to update
+        required: true
+        type: choice
+        default: nightly
+        options:
+          - nightly
+          - release
+  release:
+    types: [published]
+  workflow_call:
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Tap updates should serialize to avoid formula drift.
+  group: mpv-tap-update
+  cancel-in-progress: true
+
+jobs:
+  update-tap:
+    # Only stable releases should update the tap automatically.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository files
+        uses: actions/checkout@v7
+
+      - name: Update the Homebrew tap formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_TOKEN: ${{ secrets['HOMEBREW_TAP_TOKEN'] }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
+          TAP_REPO: Justin24506/homebrew-tap
+          FORMULA_PATH: ${{ github.event_name == 'workflow_dispatch' && inputs.formula_kind == 'release' && 'Formula/mpv.rb' || 'Formula/mpv-nightly.rb' }}
+          FORMULA_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.formula_kind == 'release' && 'Mpv' || 'MpvNightly' }}
+          FORMULA_DESC: ${{ github.event_name == 'workflow_dispatch' && inputs.formula_kind == 'release' && 'Pinned mpv release' || 'Rolling nightly build of mpv' }}
+        run: bash .github/scripts/update-tap.sh

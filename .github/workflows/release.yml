@@ -1,0 +1,111 @@
+name: Versioned mpv release
+
+on:
+  # Manual release creation keeps versioned releases explicit.
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to create or update
+        required: true
+        type: string
+      release_title:
+        description: Optional release title; defaults to the tag
+        required: false
+        type: string
+  workflow_call:
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: false
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  # A versioned release should not overlap with another release build.
+  group: mpv-release
+  cancel-in-progress: true
+
+jobs:
+  check-upstream:
+    # The release workflow still records upstream SHAs in the release notes.
+    runs-on: ubuntu-latest
+
+    outputs:
+      mpv_sha: ${{ steps.check.outputs.mpv_sha }}
+      mpv_build_sha: ${{ steps.check.outputs.mpv_build_sha }}
+      previous_mpv_sha: ${{ steps.check.outputs.previous_mpv_sha }}
+      previous_mpv_build_sha: ${{ steps.check.outputs.previous_mpv_build_sha }}
+      build_stamp: ${{ steps.check.outputs.build_stamp }}
+
+    steps:
+      - name: Checkout repository scripts
+        uses: actions/checkout@v7
+
+      - name: Check upstream commits for release notes
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/check-upstream.sh
+
+  build-and-release:
+    # The release job reuses the same build and packaging scripts as nightly.
+    needs: check-upstream
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository files
+        uses: actions/checkout@v7
+
+      - name: Install Homebrew packages
+        run: bash .github/scripts/install-packages.sh
+
+      - name: Build libdovi and install cargo-c
+        run: bash .github/scripts/build-libdovi.sh
+
+      - name: Build mpv, bundle the app, and generate checksums
+        id: build
+        env:
+          RELEASE_NAME: ${{ inputs.release_tag }}
+        run: bash .github/scripts/build-mpv.sh
+
+      - name: Generate versioned release notes
+        id: notes
+        env:
+          RELEASE_KIND: release
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+          MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
+          PREVIOUS_MPV_SHA: ${{ needs.check-upstream.outputs.previous_mpv_sha }}
+          PREVIOUS_MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.previous_mpv_build_sha }}
+          BUILD_STAMP: ${{ needs.check-upstream.outputs.build_stamp }}
+        run: bash .github/scripts/release-notes.sh "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create or update the versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_NOTES_FILE: ${{ steps.notes.outputs.release_notes_path }}
+          RELEASE_ASSET_ZIP: ${{ steps.build.outputs.zip_path }}
+          RELEASE_ASSET_SHA256: ${{ steps.build.outputs.sha256_path }}
+        run: bash .github/scripts/create-release.sh
+
+      - name: Update the pinned tap formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_TOKEN: ${{ secrets['HOMEBREW_TAP_TOKEN'] }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          TAP_REPO: Justin24506/homebrew-tap
+          FORMULA_PATH: Formula/mpv.rb
+          FORMULA_NAME: Mpv
+          FORMULA_DESC: Pinned mpv release
+        run: bash .github/scripts/update-tap.sh
+
+      - name: Clean up failed release runs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_NAME: Versioned mpv release
+        run: bash .github/scripts/cleanup-failed-runs.sh
