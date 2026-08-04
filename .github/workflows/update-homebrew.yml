@@ -13,8 +13,6 @@ on:
         default: nightly
         type: choice
         options: [nightly, release]
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -25,20 +23,19 @@ concurrency:
 
 jobs:
   update-formula:
-    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out pipeline source
+        uses: actions/checkout@v7
 
-      - name: Resolve release details
+      - name: Resolve release target
         id: release
         env:
           INPUT_TAG: ${{ inputs.release_tag }}
           INPUT_FORMULA: ${{ inputs.formula_kind }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          printf 'tag=%s\n' "${INPUT_TAG:-$RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          printf 'formula=%s\n' "${INPUT_FORMULA:-release}" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\n' "$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          printf 'formula=%s\n' "$INPUT_FORMULA" >> "$GITHUB_OUTPUT"
 
       - name: Update Homebrew formula
         id: tap

@@ -35,7 +35,21 @@ permissions:
   contents: write
 
 jobs:
+  validate-release-request:
+    name: Validate release request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ -n "$VERSION" ]] || {
+            echo 'A version is required.' >&2
+            exit 1
+          }
+
   build-and-release:
+    needs: validate-release-request
     uses: ./.github/workflows/nightly.yml
     with:
       release_kind: release

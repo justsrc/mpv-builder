@@ -57,9 +57,11 @@ jobs:
       previous_mpv_build_sha: ${{ steps.check.outputs.previous_mpv_build_sha }}
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out pipeline source
+        uses: actions/checkout@v7
 
-      - id: check
+      - name: Resolve upstream revisions
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check_upstream.py
@@ -68,20 +70,24 @@ jobs:
     needs: check-upstream
     if: ${{ github.event_name != 'schedule' || needs.check-upstream.outputs.should_build == 'true' }}
     runs-on: macos-26
+    env:
+      CFLAGS: -I/opt/homebrew/include
+      LDFLAGS: -L/opt/homebrew/lib
+      PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/glslang/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out pipeline source
+        uses: actions/checkout@v7
 
       - name: Verify Apple Silicon runner
         run: test "$(uname -m)" = arm64
 
-      - name: Set release metadata
+      - name: Resolve release configuration
         id: release
         env:
           INPUT_RELEASE_KIND: ${{ inputs.release_kind }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_RELEASE_TITLE: ${{ inputs.release_title }}
-          INPUT_RELEASE_NOTES: ${{ inputs.release_notes }}
           INPUT_DRAFT: ${{ inputs.draft }}
           INPUT_PRERELEASE: ${{ inputs.prerelease }}
           INPUT_UPDATE_VERSIONED_FORMULA: ${{ inputs.update_versioned_formula }}
@@ -114,7 +120,6 @@ jobs:
             printf 'draft=%s\n' "$draft"
             printf 'update_formula=%s\n' "$update_formula"
           } >> "$GITHUB_OUTPUT"
-          printf '%s' "$INPUT_RELEASE_NOTES" > "$RUNNER_TEMP/custom-release-notes.md"
 
       - name: Record build start
         run: |
@@ -124,7 +129,8 @@ jobs:
             printf 'GITHUB_RUN_URL=%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
           } >> "$GITHUB_ENV"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry, Git dependencies, and tools
         uses: actions/cache@v4
@@ -133,62 +139,79 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-          key: ${{ runner.os }}-arm64-cargo-v1-${{ hashFiles('scripts/build_libdovi.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-arm64-cargo-v1-
+          key: ${{ runner.os }}-arm64-cargo-c-v1
 
       - name: Cache libdovi source and build artifacts
         uses: actions/cache@v4
         with:
           path: ~/.cache/mpv-builder/dovi_tool
-          key: ${{ runner.os }}-arm64-libdovi-v1-${{ needs.check-upstream.outputs.libdovi_sha }}-${{ hashFiles('scripts/build_libdovi.sh') }}
+          key: ${{ runner.os }}-arm64-libdovi-build-v1-${{ needs.check-upstream.outputs.libdovi_sha }}
 
-      - name: Install dependencies and libdovi
+      - name: Prepare Homebrew runner
+        run: bash scripts/build_libdovi.sh prepare-homebrew
+
+      - name: Install Homebrew dependencies
+        run: bash scripts/build_libdovi.sh brew-dependencies
+
+      - name: Install cargo-c
+        run: bash scripts/build_libdovi.sh cargo-c
+
+      - name: Build libdovi
         id: libdovi
         env:
           LIBDOVI_SHA: ${{ needs.check-upstream.outputs.libdovi_sha }}
-        run: bash scripts/build_libdovi.sh
+        run: bash scripts/build_libdovi.sh build
 
-      - name: Build and bundle mpv
-        id: build
+      - name: Set build workspace path
+        run: printf 'MPV_BUILD_ROOT=%s\n' "$RUNNER_TEMP/mpv-build" >> "$GITHUB_ENV"
+
+      - name: Clone pinned mpv-build source
         env:
-          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
           MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
         run: |
-          build_root="$RUNNER_TEMP/mpv-build"
-          rm -rf "$build_root"
-          mkdir -p "$build_root"
-          git -C "$build_root" init --quiet
-          git -C "$build_root" remote add origin https://github.com/mpv-player/mpv-build.git
-          git -C "$build_root" fetch --depth=1 origin "$MPV_BUILD_SHA"
-          git -C "$build_root" checkout --detach --quiet FETCH_HEAD
-          cp ffmpeg_options mpv_options "$build_root/"
+          rm -rf "$MPV_BUILD_ROOT"
+          mkdir -p "$MPV_BUILD_ROOT"
+          git -C "$MPV_BUILD_ROOT" init --quiet
+          git -C "$MPV_BUILD_ROOT" remote add origin https://github.com/mpv-player/mpv-build.git
+          git -C "$MPV_BUILD_ROOT" fetch --depth=1 origin "$MPV_BUILD_SHA"
+          git -C "$MPV_BUILD_ROOT" checkout --detach --quiet FETCH_HEAD
 
-          pushd "$build_root" >/dev/null
-          export CFLAGS='-I/opt/homebrew/include'
-          export LDFLAGS='-L/opt/homebrew/lib'
-          export PKG_CONFIG_PATH='/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/glslang/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig'
+      - name: Configure pinned mpv source
+        env:
+          MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+        run: |
+          cp ffmpeg_options mpv_options "$MPV_BUILD_ROOT/"
+          pushd "$MPV_BUILD_ROOT" >/dev/null
           ./use-mpv-master
           git -C mpv fetch --depth=1 origin "$MPV_SHA"
           git -C mpv checkout --detach --quiet FETCH_HEAD
           SOURCE_DATE_EPOCH="$(git -C mpv show -s --format=%ct HEAD)"
-          export SOURCE_DATE_EPOCH
           printf 'SOURCE_DATE_EPOCH=%s\n' "$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
-          ./rebuild
+          popd >/dev/null
 
+      - name: Build mpv
+        run: |
+          pushd "$MPV_BUILD_ROOT" >/dev/null
+          ./rebuild
+          popd >/dev/null
+
+      - name: Bundle mpv.app
+        id: bundle
+        run: |
+          pushd "$MPV_BUILD_ROOT" >/dev/null
           mkdir -p mpv/TOOLS
           cp "$GITHUB_WORKSPACE/osxbundle.py" mpv/TOOLS/osxbundle.py
           cp "$GITHUB_WORKSPACE/dylib_unhell.py" mpv/TOOLS/dylib_unhell.py
           pushd mpv >/dev/null
           python3 TOOLS/osxbundle.py build/mpv .
-          printf 'bundle_path=%s\n' "$build_root/mpv/build/mpv.app" >> "$GITHUB_OUTPUT"
+          printf 'bundle_path=%s\n' "$MPV_BUILD_ROOT/mpv/build/mpv.app" >> "$GITHUB_OUTPUT"
           popd >/dev/null
           popd >/dev/null
 
       - name: Package release assets and metadata
         id: package
         env:
-          BUNDLE_PATH: ${{ steps.build.outputs.bundle_path }}
+          BUNDLE_PATH: ${{ steps.bundle.outputs.bundle_path }}
           ARCHIVE_PATH: ${{ runner.temp }}/mpv-macos-arm64.zip
           CHECKSUMS_PATH: ${{ runner.temp }}/SHA256SUMS.txt
           METADATA_PATH: ${{ runner.temp }}/build-metadata.json
@@ -202,6 +225,7 @@ jobs:
           PREVIOUS_MPV_SHA: ${{ needs.check-upstream.outputs.previous_mpv_sha }}
           PREVIOUS_MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.previous_mpv_build_sha }}
           RELEASE_TITLE: ${{ steps.release.outputs.title }}
+          CUSTOM_RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           python3 scripts/release_notes.py \
             --metadata "${{ steps.package.outputs.metadata_path }}" \
@@ -209,7 +233,7 @@ jobs:
             --title "$RELEASE_TITLE" \
             --previous-mpv "$PREVIOUS_MPV_SHA" \
             --previous-mpv-build "$PREVIOUS_MPV_BUILD_SHA" \
-            --custom-notes "$(<"$RUNNER_TEMP/custom-release-notes.md")"
+            --custom-notes "$CUSTOM_RELEASE_NOTES"
 
       - name: Create or update GitHub release
         id: publish
@@ -266,7 +290,7 @@ jobs:
         with:
           name: mpv-${{ steps.release.outputs.tag }}-macos-arm64
           path: |
-            ${{ steps.build.outputs.bundle_path }}
+            ${{ steps.bundle.outputs.bundle_path }}
             ${{ steps.package.outputs.archive_path }}
             ${{ steps.package.outputs.checksums_path }}
             ${{ steps.package.outputs.metadata_path }}
