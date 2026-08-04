@@ -48,6 +48,11 @@ jobs:
         run: |
           ls -R TOOLS/osxbundle
 
+      - name: Create a folder
+        working-directory: artifact/mpv
+        run: |
+          mkdir -p build/mpv.app/Contents/MacOS
+
       - name: Bundle mpv.app
         working-directory: artifact/mpv
         run: |
