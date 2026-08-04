@@ -33,21 +33,21 @@ jobs:
             --name mpv-build-tree \
             --dir artifact
 
-      - name: Inspect artifact
+      - name: Inspect top level
         run: |
-          find artifact -maxdepth 3 | sort
+          ls -la artifact
 
       - name: Bundle mpv.app
-        working-directory: artifact/mpv-build/mpv
+        working-directory: artifact/mpv
         run: |
-          python3 TOOLS/osxbundle.py build/mpv
+          python3 TOOLS/osxbundle.py build/mpv .
 
       - name: Locate app
         run: |
-          find artifact/mpv-build -name "*.app"
+          find artifact -name "*.app"
 
       - name: Upload mpv.app
         uses: actions/upload-artifact@v4
         with:
           name: mpv.app
-          path: artifact/mpv-build/**/*.app
+          path: artifact/**/*.app
