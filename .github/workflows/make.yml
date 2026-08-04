@@ -233,3 +233,14 @@ jobs:
       - name: Replace osxbundle.py
         run: |
           cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
+
+      - name: Bundle mpv.app
+        working-directory: artifact/mpv
+        run: |
+          python3 TOOLS/osxbundle.py build/mpv .
+
+      - name: Upload mpv.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpv.app
+          path: artifact/mpv/build/mpv.app
