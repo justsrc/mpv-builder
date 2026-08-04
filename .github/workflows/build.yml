@@ -128,7 +128,7 @@ jobs:
         working-directory: mpv-build
         run: |
           cd mpv
-          python3 TOOLS/osxbundle.py build/mpv
+          cat TOOLS/osxbundle.py
 
       - name: Locate app bundle
         working-directory: mpv-build
