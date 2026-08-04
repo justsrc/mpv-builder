@@ -20,7 +20,7 @@ jobs:
         run: |
 
           RUN_ID=$(gh run list \
-            --workflow "Build mpv" \
+            --workflow "Build mpv (master)" \
             --branch main \
             --limit 1 \
             --json databaseId \
