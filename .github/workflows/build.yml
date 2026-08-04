@@ -3,6 +3,10 @@ name: Build mpv (master)
 on:
   push:
     branches: [main]
+    paths:
+      - "ffmpeg_options"
+      - "mpv_options"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 concurrency:
