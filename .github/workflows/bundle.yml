@@ -33,26 +33,6 @@ jobs:
             --name mpv-build-tree \
             --dir artifact
 
-      - name: Inspect bundle skeleton
-        working-directory: artifact/mpv
-        run: |
-          find TOOLS/osxbundle -maxdepth 3
-
-      - name: Inspect build output
-        working-directory: artifact/mpv
-        run: |
-          ls -R build | head -100
-
-      - name: Check skeleton
-        working-directory: artifact/mpv
-        run: |
-          ls -R TOOLS/osxbundle
-
-      - name: Create a folder
-        working-directory: artifact/mpv
-        run: |
-          mkdir -p build/mpv.app/Contents/MacOS
-
       - name: Bundle mpv.app
         working-directory: artifact/mpv
         run: |
