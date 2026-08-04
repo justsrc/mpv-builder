@@ -191,16 +191,18 @@ jobs:
           cp ffmpeg_options mpv_options "$MPV_BUILD_ROOT/"
           pushd "$MPV_BUILD_ROOT" >/dev/null
           ./use-mpv-master
+          ./update --skip-selfupdate
           git -C mpv fetch --depth=1 origin "$MPV_SHA"
           git -C mpv checkout --detach --quiet FETCH_HEAD
           SOURCE_DATE_EPOCH="$(git -C mpv show -s --format=%ct HEAD)"
           printf 'SOURCE_DATE_EPOCH=%s\n' "$SOURCE_DATE_EPOCH" >> "$GITHUB_ENV"
           popd >/dev/null
 
-      - name: Build mpv
+      - name: Build mpv from pinned sources
         run: |
           pushd "$MPV_BUILD_ROOT" >/dev/null
-          ./rebuild
+          ./clean
+          ./build
           popd >/dev/null
 
       - name: Bundle mpv.app
