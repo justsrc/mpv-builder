@@ -233,9 +233,10 @@ jobs:
           cd dovi_tool/dolby_vision
           cargo cinstall --release --prefix /opt/homebrew
 
-      - name: Replace osxbundle.py
+      - name: Replace osxbundle.py and dylib_unhell.py
         run: |
           cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
+          cp dylib_unhell.py artifact/mpv/TOOLS/dylib_unhell.py
 
       - name: Bundle mpv.app
         working-directory: artifact/mpv
