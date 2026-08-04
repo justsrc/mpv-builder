@@ -74,7 +74,12 @@ jobs:
             libcdio-paranoia \
             libdvdnav \
             luajit \
-            rubberband
+            rubberband \
+            python-docutils \
+            lcms2 \
+            uchardet \
+            vapoursynth \
+            libdvdread
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -129,10 +134,6 @@ jobs:
       - name: Dump configure logs on failure
         if: failure()
         run: |
-          echo "===== Searching for vidstab ====="
-          grep -R -n -A20 -B20 "vidstab" mpv-build 2>/dev/null || true
-
-          echo
           echo "===== FFmpeg config.log ====="
           find mpv-build -path "*/ffbuild/config.log" -exec sh -c '
             echo "---- {} ----"
