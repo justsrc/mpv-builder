@@ -75,7 +75,7 @@ jobs:
             libdvdnav \
             luajit \
             rubberband \
-            python-docutils \
+            docutils \
             lcms2 \
             uchardet \
             vapoursynth \
