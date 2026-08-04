@@ -27,7 +27,7 @@ def is_user_lib(objfile, libname):
     )
 
 
-def otool(objfile, rapths):
+def otool(objfile, rpaths):
     output = subprocess.check_output(
         ["otool", "-L", objfile],
         universal_newlines=True,
@@ -43,7 +43,7 @@ def otool(objfile, rapths):
     libs_resolved = set()
     libs_relative = set()
     for lib in libs:
-        lib_path = resolve_lib_path(objfile, lib, rapths)
+        lib_path = resolve_lib_path(objfile, lib, rpaths)
         libs_resolved.add(lib_path)
         if lib_path != lib:
             libs_relative.add(lib)
@@ -79,13 +79,13 @@ def get_rpaths_dev_tools(binary):
     ]
 
 
-def resolve_lib_path(objfile, lib, rapths):
+def resolve_lib_path(objfile, lib, rpaths):
     if os.path.exists(lib):
         return lib
 
     if lib.startswith("@rpath/"):
         libname = lib[len("@rpath/") :]
-        for rpath in rapths:
+        for rpath in rpaths:
             candidate = os.path.join(rpath, libname)
             if os.path.exists(candidate):
                 return candidate
@@ -117,13 +117,13 @@ def resolve_lib_path(objfile, lib, rapths):
     raise Exception("Could not resolve library: " + lib)
 
 
-# def resolve_lib_path(objfile, lib, rapths):
+# def resolve_lib_path(objfile, lib, rpaths):
 #     if os.path.exists(lib):
 #         return lib
 
 #     if lib.startswith("@rpath/"):
 #         lib = lib[len("@rpath/"):]
-#         for rpath in rapths:
+#         for rpath in rpaths:
 #             lib_path = os.path.join(rpath, lib)
 #             if os.path.exists(lib_path):
 #                 return lib_path
@@ -184,24 +184,24 @@ def install_name_tool_delete_rpath(rpath, binary):
     subprocess.call(["install_name_tool", "-delete_rpath", rpath, binary])
 
 
-def libraries(objfile, result=None, result_relative=None, rapths=None):
+def libraries(objfile, result=None, result_relative=None, rpaths=None):
     if result is None:
         result = {}
 
     if result_relative is None:
         result_relative = set()
 
-    if rapths is None:
-        rapths = []
+    if rpaths is None:
+        rpaths = []
 
-    rapths = get_rapths(objfile) + rapths
-    libs_list, libs_relative = otool(objfile, rapths)
+    rpaths = get_rapths(objfile) + rpaths
+    libs_list, libs_relative = otool(objfile, rpaths)
     result[objfile] = libs_list
     result_relative |= libs_relative
 
     for lib in libs_list:
         if lib not in result:
-            libraries(lib, result, result_relative, rapths)
+            libraries(lib, result, result_relative, rpaths)
 
     return result, result_relative
 
