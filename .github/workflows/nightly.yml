@@ -53,6 +53,20 @@ jobs:
       - name: Checkout repository files
         uses: actions/checkout@v7
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo and libdovi build state
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/mpv-builder
+          key: ${{ runner.os }}-libdovi-${{ hashFiles('.github/scripts/build-libdovi.sh') }}
+
       - name: Install Homebrew packages
         run: bash .github/scripts/install-packages.sh
 
