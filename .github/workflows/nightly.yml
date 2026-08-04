@@ -126,13 +126,22 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo and libdovi source
+      - name: Cache Cargo registry, Git dependencies, and tools
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo
-            ~/.cache/mpv-builder
-          key: ${{ runner.os }}-arm64-libdovi-v1-${{ hashFiles('scripts/build_libdovi.sh') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ runner.os }}-arm64-cargo-v1-${{ hashFiles('scripts/build_libdovi.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cargo-v1-
+
+      - name: Cache libdovi source and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mpv-builder/dovi_tool
+          key: ${{ runner.os }}-arm64-libdovi-v1-${{ needs.check-upstream.outputs.libdovi_sha }}-${{ hashFiles('scripts/build_libdovi.sh') }}
 
       - name: Install dependencies and libdovi
         id: libdovi
