@@ -37,9 +37,10 @@ jobs:
         run: |
           cp osxbundle.py artifact/mpv/TOOLS/osxbundle.py
 
-      - name: Verify replacement
+      - name: Inspect linked libraries
+        working-directory: artifact/mpv
         run: |
-          grep -n "os.makedirs" artifact/mpv/TOOLS/osxbundle.py
+          otool -L build/mpv
 
       - name: Bundle mpv.app
         working-directory: artifact/mpv
