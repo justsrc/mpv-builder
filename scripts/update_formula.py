@@ -104,6 +104,36 @@ def write_output(name: str, value: str) -> None:
             output.write(f"{name}={value}\n")
 
 
+def generate_cask_content(
+    cask_token: str,
+    version: str,
+    checksum: str,
+    archive_url: str,
+    description: str,
+    repo: str,
+    is_nightly: bool,
+) -> str:
+    """Generate RuboCop-compliant Cask file content."""
+    sha256_stanza = "  sha256 :no_check\n" if is_nightly else f'  sha256 "{checksum}"\n'
+
+    return (
+        f'cask "{cask_token}" do\n'
+        f'  version "{version}"\n'
+        f"{sha256_stanza}"
+        "\n"
+        f'  url "{archive_url}"\n'
+        '  name "mpv"\n'
+        f'  desc "{description}"\n'
+        f'  homepage "https://github.com/{repo}"\n'
+        "\n"
+        '  depends_on macos: ">= :big_sur"\n'
+        "  depends_on arch: :arm64\n"
+        "\n"
+        '  app "mpv.app"\n'
+        "end\n"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--release-tag", required=True)
@@ -122,18 +152,25 @@ def main() -> int:
     archive_url = release_asset_url(args.release_tag)
     checksum, metadata = verified_release_assets(args.release_tag, args.sha256)
 
-    if args.cask == "nightly":
+    is_nightly = args.cask == "nightly"
+
+    if is_nightly:
         cask_path = Path("Casks/mpv@nightly.rb")
         cask_token = "mpv@nightly"
-        description = "Rolling nightly build of mpv"
+        description = "Media player (nightly build)"
         version = f"nightly-{metadata['workflow_number']}"
         commit_subject = "Nightly cask update"
     else:
         cask_path = Path("Casks/mpv.rb")
         cask_token = "mpv"
-        description = "Custom mpv release"
+        description = "Media player"
         version = args.release_tag.removeprefix("v")
         commit_subject = f"Update mpv cask to {args.release_tag}"
+
+    github_repo = os.environ["GITHUB_REPOSITORY"]
+    cask_content = generate_cask_content(
+        cask_token, version, checksum, archive_url, description, github_repo, is_nightly
+    )
 
     with tempfile.TemporaryDirectory() as directory:
         tap_directory = Path(directory, "tap")
@@ -151,23 +188,7 @@ def main() -> int:
         )
         cask_file = tap_directory / cask_path
         cask_file.parent.mkdir(parents=True, exist_ok=True)
-        cask_file.write_text(
-            f'''cask "{cask_token}" do
-  version "{version}"
-  sha256 "{checksum}"
-
-  url "{archive_url}"
-  name "mpv"
-  desc "{description}"
-  homepage "https://github.com/{os.environ["GITHUB_REPOSITORY"]}"
-
-  depends_on arch: :arm64
-
-  app "mpv.app"
-end
-''',
-            encoding="utf-8",
-        )
+        cask_file.write_text(cask_content, encoding="utf-8")
 
         run(["git", "add", str(cask_path)], cwd=tap_directory)
 
