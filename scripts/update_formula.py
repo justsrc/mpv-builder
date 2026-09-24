@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Protocol, TypedDict, cast
 from urllib.parse import quote
 
+CASK_TEMPLATE = Path(__file__).with_name("cask.rb.template")
+
 
 class _Asset(TypedDict):
     name: str
@@ -134,23 +136,15 @@ def generate_cask_content(
     is_nightly: bool,
 ) -> str:
     """Generate RuboCop-compliant Cask file content."""
-    sha256_stanza = "  sha256 :no_check\n" if is_nightly else f'  sha256 "{checksum}"\n'
+    sha256_stanza = "sha256 :no_check" if is_nightly else f'sha256 "{checksum}"'
 
-    return (
-        f'cask "{cask_token}" do\n'
-        f'  version "{version}"\n'
-        f"{sha256_stanza}"
-        "\n"
-        f'  url "{archive_url}"\n'
-        '  name "mpv"\n'
-        f'  desc "{description}"\n'
-        f'  homepage "https://github.com/{repo}"\n'
-        "\n"
-        '  depends_on macos: :big_sur\n'
-        "  depends_on arch: :arm64\n"
-        "\n"
-        '  app "mpv.app"\n'
-        "end\n"
+    return CASK_TEMPLATE.read_text(encoding="utf-8").format(
+        cask_token=cask_token,
+        version=version,
+        sha256_stanza=sha256_stanza,
+        archive_url=archive_url,
+        description=description,
+        repo=repo,
     )
 
 
@@ -224,6 +218,21 @@ def main() -> int:
             print("Homebrew cask already matches the release.")
             return 0
 
+        base_branch = run(
+            [
+                "gh",
+                "repo",
+                "view",
+                tap_repo,
+                "--json",
+                "defaultBranchRef",
+                "--jq",
+                ".defaultBranchRef.name",
+            ],
+            env=clone_env,
+        )
+        branch_name = f"cask/{version}"
+        _ = run(["git", "switch", "-c", branch_name], cwd=tap_directory)
         _ = run(["git", "config", "user.name", "github-actions[bot]"], cwd=tap_directory)
         _ = run(
             [
@@ -235,17 +244,39 @@ def main() -> int:
             cwd=tap_directory,
         )
         message = ["git", "commit", "-m", commit_subject]
+        build_info = ""
         if args_typed.mpv_sha and args_typed.mpv_build_sha:
-            message.extend(
-                ["-m", f"mpv: {args_typed.mpv_sha}\nmpv-build: {args_typed.mpv_build_sha}"]
+            build_info = (
+                f"Upstream revisions:\n\nmpv: {args_typed.mpv_sha}\n"
+                f"mpv-build: {args_typed.mpv_build_sha}"
             )
+            message.extend(["-m", build_info])
         _ = run(message, cwd=tap_directory)
-        commit_sha = run(["git", "rev-parse", "HEAD"], cwd=tap_directory)
-        _ = run(["git", "push", "origin", "HEAD"], cwd=tap_directory)
+        _ = run(["git", "push", "-u", "origin", branch_name], cwd=tap_directory)
 
-    commit_url = f"https://github.com/{tap_repo}/commit/{commit_sha}"
-    write_output("tap_commit_url", commit_url)
-    print(f"tap_commit_url={commit_url}")
+        pr_body = build_info or f"Update the `{cask_token}` cask to `{version}`."
+        pr_url = run(
+            [
+                "gh",
+                "pr",
+                "create",
+                "--repo",
+                tap_repo,
+                "--base",
+                base_branch,
+                "--head",
+                branch_name,
+                "--title",
+                commit_subject,
+                "--body",
+                pr_body,
+            ],
+            cwd=tap_directory,
+            env=clone_env,
+        )
+
+    write_output("tap_pr_url", pr_url)
+    print(f"tap_pr_url={pr_url}")
     return 0
 
 

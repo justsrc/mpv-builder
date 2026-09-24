@@ -330,7 +330,7 @@ jobs:
           DURATION: ${{ steps.package.outputs.duration_seconds }}
           ARTIFACT_SIZE: ${{ steps.package.outputs.artifact_size_bytes }}
           RELEASE_URL: ${{ steps.publish.outputs.release_url }}
-          TAP_COMMIT_URL: ${{ steps.tap.outputs.tap_commit_url }}
+          TAP_PR_URL: ${{ steps.tap.outputs.tap_pr_url }}
           WORKFLOW_STATUS: ${{ job.status }}
         run: |
           {
@@ -343,7 +343,7 @@ jobs:
             [[ -n "${DURATION:-}" ]] && echo "- Duration: ${DURATION} seconds"
             [[ -n "${ARTIFACT_SIZE:-}" ]] && echo "- Artifact size: ${ARTIFACT_SIZE} bytes"
             [[ -n "${RELEASE_URL:-}" ]] && echo "- Release: $RELEASE_URL"
-            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Homebrew commit: $TAP_COMMIT_URL"
+            [[ -n "${TAP_PR_URL:-}" ]] && echo "- Homebrew PR: $TAP_PR_URL"
           } >> "$GITHUB_STEP_SUMMARY"
 
   summary-for-skipped-nightly:

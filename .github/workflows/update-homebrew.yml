@@ -51,9 +51,9 @@ jobs:
       - name: Write workflow summary
         if: always()
         env:
-          TAP_COMMIT_URL: ${{ steps.tap.outputs.tap_commit_url }}
+          TAP_PR_URL: ${{ steps.tap.outputs.tap_pr_url }}
         run: |
           {
             echo '## Homebrew cask update summary'
-            [[ -n "${TAP_COMMIT_URL:-}" ]] && echo "- Commit: $TAP_COMMIT_URL" || echo '- No cask change was made.'
+            [[ -n "${TAP_PR_URL:-}" ]] && echo "- PR: $TAP_PR_URL" || echo '- No cask change was made.'
           } >> "$GITHUB_STEP_SUMMARY"
