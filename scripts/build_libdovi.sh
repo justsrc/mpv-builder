@@ -7,6 +7,20 @@ prepare_homebrew() {
   fi
 }
 
+install_fdk_aac() {
+  local version="2.0.3"
+  local src_dir="${RUNNER_TEMP:-/tmp}/fdk-aac-src"
+
+  rm -rf "$src_dir"
+  git clone --depth 1 --branch "v$version" https://github.com/mstorsjo/fdk-aac.git "$src_dir"
+  pushd "$src_dir" >/dev/null
+  autoreconf -fiv
+  ./configure --prefix=/opt/homebrew --enable-shared --disable-static
+  make -j"$(sysctl -n hw.ncpu)"
+  make install
+  popd >/dev/null
+}
+
 install_brew_dependencies() {
   brew update
   brew install \
@@ -15,7 +29,6 @@ install_brew_dependencies() {
     automake \
     dav1d \
     docutils \
-    fdk-aac \
     fontconfig \
     freetype \
     fribidi \
@@ -143,6 +156,9 @@ case "${1:-build}" in
   brew-dependencies)
     install_brew_dependencies
     ;;
+  fdk-aac)
+    install_fdk_aac
+    ;;
   cargo-c)
     install_cargo_c
     ;;
@@ -150,7 +166,7 @@ case "${1:-build}" in
     build_libdovi
     ;;
   *)
-    printf 'Usage: %s {prepare-homebrew|brew-dependencies|cargo-c|build}\n' "$0" >&2
+    printf 'Usage: %s {prepare-homebrew|brew-dependencies|fdk-aac|cargo-c|build}\n' "$0" >&2
     exit 2
     ;;
 esac

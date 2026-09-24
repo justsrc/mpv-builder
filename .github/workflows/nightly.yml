@@ -159,6 +159,9 @@ jobs:
       - name: Install Homebrew dependencies
         run: bash scripts/build_libdovi.sh brew-dependencies
 
+      - name: Build fdk-aac from source
+        run: bash scripts/build_libdovi.sh fdk-aac
+
       - name: Install cargo-c
         env:
           CARGO_C_SHA: ${{ needs.check-upstream.outputs.cargo_c_sha }}
