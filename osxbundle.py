@@ -1,39 +1,49 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
 import fileinput
 import os
 import re
 import shutil
 import subprocess
-from optparse import OptionParser
+from typing import Protocol, cast
 
 import dylib_unhell
 
 
-def bundle_path(binary_name):
+class _BundleArgs(Protocol):
+    binary_name: str
+    src_path: str
+    category: str
+    deps: bool
+
+
+def bundle_path(binary_name: str) -> str:
     return f"{binary_name}.app"
 
 
-def bundle_name(binary_name):
+def bundle_name(binary_name: str) -> str:
     return os.path.basename(bundle_path(binary_name))
 
 
-def target_plist(binary_name):
+def target_plist(binary_name: str) -> str:
     return os.path.join(bundle_path(binary_name), "Contents", "Info.plist")
 
 
-def target_directory(binary_name):
+def target_directory(binary_name: str) -> str:
     return os.path.join(bundle_path(binary_name), "Contents", "MacOS")
 
 
-def target_binary(binary_name):
+def target_binary(binary_name: str) -> str:
     return os.path.join(target_directory(binary_name), os.path.basename(binary_name))
 
 
-def copy_bundle(binary_name, src_path):
+def copy_bundle(binary_name: str, src_path: str) -> None:
     if os.path.isdir(bundle_path(binary_name)):
         shutil.rmtree(bundle_path(binary_name))
 
-    shutil.copytree(
+    _ = shutil.copytree(
         os.path.join(src_path, "TOOLS", "osxbundle", bundle_name(binary_name)),
         bundle_path(binary_name),
     )
@@ -41,12 +51,12 @@ def copy_bundle(binary_name, src_path):
     os.makedirs(target_directory(binary_name), exist_ok=True)
 
 
-def copy_binary(binary_name):
+def copy_binary(binary_name: str) -> None:
     os.makedirs(target_directory(binary_name), exist_ok=True)
-    shutil.copy(binary_name, target_binary(binary_name))
+    _ = shutil.copy(binary_name, target_binary(binary_name))
 
 
-def apply_plist_template(plist_file, version, category):
+def apply_plist_template(plist_file: str, version: str, category: str) -> None:
     print(">> setting bundle category to " + category)
     for line in fileinput.input(plist_file, inplace=True):
         print(
@@ -56,59 +66,56 @@ def apply_plist_template(plist_file, version, category):
         )
 
 
-def sign_bundle(binary_name):
-    sign_directories = ["Contents/Frameworks", "Contents/MacOS"]
+def sign_bundle(binary_name: str) -> None:
+    sign_directories: list[str] = ["Contents/Frameworks", "Contents/MacOS"]
     for sign_dir in sign_directories:
-        resolved_dir = os.path.join(bundle_path(binary_name), sign_dir)
+        resolved_dir: str = os.path.join(bundle_path(binary_name), sign_dir)
         for root, _dirs, files in os.walk(resolved_dir):
             for f in files:
-                path = os.path.join(root, f)
-                subprocess.run(["codesign", "--force", "-s", "-", path])
-    subprocess.run(["codesign", "--force", "-s", "-", bundle_path(binary_name)])
+                path: str = os.path.join(root, f)
+                _ = subprocess.run(["codesign", "--force", "-s", "-", path])
+    _ = subprocess.run(["codesign", "--force", "-s", "-", bundle_path(binary_name)])
 
 
-def bundle_version(build_path):
-    version = "UNKNOWN"
-    version_h_path = os.path.join(build_path, "common", "version.h")
+def bundle_version(build_path: str) -> str:
+    version: str = "UNKNOWN"
+    version_h_path: str = os.path.join(build_path, "common", "version.h")
     if os.path.exists(version_h_path):
-        x = open(version_h_path)
-        version = re.findall(r"#define\s+VERSION\s+\"v(.+)\"", x.read())[0]
-        x.close()
+        with open(version_h_path, encoding="utf-8") as x:
+            content: str = x.read()
+            matches: list[str] = re.findall(r"#define\s+VERSION\s+\"v(.+)\"", content)
+            if matches:
+                version = matches[0]
     return version
 
 
-def main():
-    usage = "usage: %prog [options] arg"
-    parser = OptionParser(usage)
-    parser.add_option(
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Create macOS application bundle")
+    _ = parser.add_argument("binary_name", help="path to mpv binary")
+    _ = parser.add_argument("src_path", nargs="?", default=".", help="mpv source path")
+    _ = parser.add_argument(
         "-s",
         "--skip-deps",
-        action="store_false",
         dest="deps",
+        action="store_false",
         default=True,
         help="don't bundle the dependencies",
     )
-    parser.add_option(
+    _ = parser.add_argument(
         "-c",
         "--category",
-        action="store",
-        dest="category",
-        type="choice",
         choices=["video", "games"],
         default="video",
         help="sets bundle category",
     )
+    args = parser.parse_args()
+    args_typed = cast(_BundleArgs, cast(object, args))
 
-    (options, args) = parser.parse_args()
+    binary_name: str = args_typed.binary_name
+    build_path: str = os.path.dirname(binary_name)
+    src_path: str = args_typed.src_path
 
-    if len(args) < 1 or len(args) > 2:
-        parser.error("incorrect number of arguments")
-    else:
-        binary_name = args[0]
-        build_path = os.path.dirname(binary_name)
-        src_path = args[1] if len(args) > 1 else "."
-
-    version = bundle_version(build_path).rstrip()
+    version: str = bundle_version(build_path).rstrip()
 
     print(f"Creating macOS application bundle (version: {version})...")
     print("> copying bundle skeleton")
@@ -116,9 +123,11 @@ def main():
     print("> copying binary")
     copy_binary(binary_name)
     print("> generating Info.plist")
-    apply_plist_template(target_plist(binary_name), version, options.category)
+    category: str = args_typed.category
+    apply_plist_template(target_plist(binary_name), version, category)
 
-    if options.deps:
+    deps: bool = args_typed.deps
+    if deps:
         print("> bundling dependencies")
         dylib_unhell.process(target_binary(binary_name))
 

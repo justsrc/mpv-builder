@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import json
 import os
@@ -6,13 +7,22 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
+from typing import TypedDict, cast
 
-sys_re = re.compile("^/System")
-usr_re = re.compile("^/usr/lib/")
-exe_re = re.compile("@executable_path")
+sys_re = re.compile(r"^/System")
 
 
-def is_user_lib(objfile, libname):
+class _VulkanLibraryEntry(TypedDict):
+    library_path: str
+
+
+_VulkanLoaderJson = dict[str, _VulkanLibraryEntry]
+usr_re = re.compile(r"^/usr/lib/")
+exe_re = re.compile(r"@executable_path")
+
+
+def is_user_lib(objfile: str, libname: str) -> bool:
     return (
         not sys_re.match(libname)
         and not usr_re.match(libname)
@@ -27,32 +37,32 @@ def is_user_lib(objfile, libname):
     )
 
 
-def otool(objfile, rpaths):
-    output = subprocess.check_output(
+def otool(objfile: str, rpaths: list[str]) -> tuple[set[str], set[str]]:
+    output: str = subprocess.check_output(
         ["otool", "-L", objfile],
         universal_newlines=True,
     )
-    libs = set()
+    libs: set[str] = set()
     for line in output.splitlines():
         if not line.startswith("\t"):
             continue
-        lib = line.split()[0]
+        lib: str = line.split()[0]
         if is_user_lib(objfile, lib):
             libs.add(lib)
 
-    libs_resolved = set()
-    libs_relative = set()
+    libs_resolved: set[str] = set()
+    libs_relative: set[str] = set()
     for lib in libs:
-        lib_path = resolve_lib_path(objfile, lib, rpaths)
-        libs_resolved.add(lib_path)
-        if lib_path != lib:
+        lib_path_resolved: str = resolve_lib_path(objfile, lib, rpaths)
+        libs_resolved.add(lib_path_resolved)
+        if lib_path_resolved != lib:
             libs_relative.add(lib)
 
     return libs_resolved, libs_relative
 
 
-def iter_rpaths(objfile):
-    output = subprocess.check_output(
+def iter_rpaths(objfile: str) -> Iterator[str]:
+    output: str = subprocess.check_output(
         ["otool", "-l", objfile],
         universal_newlines=True,
     )
@@ -62,8 +72,8 @@ def iter_rpaths(objfile):
             yield match.group(1).strip()
 
 
-def get_rapths(objfile):
-    loader_path = os.path.dirname(objfile)
+def get_rapths(objfile: str) -> list[str]:
+    loader_path: str = os.path.dirname(objfile)
     return [
         # resolve @loader_path
         os.path.normpath(rpath.replace("@loader_path", loader_path, 1))
@@ -71,7 +81,12 @@ def get_rapths(objfile):
     ]
 
 
-def get_rpaths_dev_tools(binary):
+# Correct spelling; keep typo alias for backwards compatibility
+def get_rpaths(objfile: str) -> list[str]:
+    return get_rapths(objfile)
+
+
+def get_rpaths_dev_tools(binary: str) -> list[str]:
     return [
         rpath
         for rpath in iter_rpaths(binary)
@@ -79,14 +94,14 @@ def get_rpaths_dev_tools(binary):
     ]
 
 
-def resolve_lib_path(objfile, lib, rpaths):
+def resolve_lib_path(objfile: str, lib: str, rpaths: list[str]) -> str:
     if os.path.exists(lib):
         return lib
 
     if lib.startswith("@rpath/"):
-        libname = lib[len("@rpath/") :]
+        libname: str = lib[len("@rpath/") :]
         for rpath in rpaths:
-            candidate = os.path.join(rpath, libname)
+            candidate: str = os.path.join(rpath, libname)
             if os.path.exists(candidate):
                 return candidate
 
@@ -97,11 +112,11 @@ def resolve_lib_path(objfile, lib, rpaths):
             return candidate
 
     # Homebrew fallback (handles keg-only libraries such as ICU)
-    homebrew_prefix = get_homebrew_prefix()
+    homebrew_prefix: str = get_homebrew_prefix()
 
-    search_dirs = [os.path.join(homebrew_prefix, "lib")]
+    search_dirs: list[str] = [os.path.join(homebrew_prefix, "lib")]
 
-    opt_dir = os.path.join(homebrew_prefix, "opt")
+    opt_dir: str = os.path.join(homebrew_prefix, "opt")
     if os.path.isdir(opt_dir):
         search_dirs.extend(
             os.path.join(opt_dir, formula, "lib")
@@ -110,35 +125,16 @@ def resolve_lib_path(objfile, lib, rpaths):
         )
 
     for directory in search_dirs:
-        candidate = os.path.join(directory, (os.path.basename(lib)))
+        candidate = os.path.join(directory, os.path.basename(lib))
         if os.path.exists(candidate):
             return candidate
 
     raise Exception("Could not resolve library: " + lib)
 
 
-# def resolve_lib_path(objfile, lib, rpaths):
-#     if os.path.exists(lib):
-#         return lib
-
-#     if lib.startswith("@rpath/"):
-#         lib = lib[len("@rpath/"):]
-#         for rpath in rpaths:
-#             lib_path = os.path.join(rpath, lib)
-#             if os.path.exists(lib_path):
-#                 return lib_path
-#     elif lib.startswith("@loader_path/"):
-#         lib = lib[len("@loader_path/"):]
-#         lib_path = os.path.normpath(os.path.join(objfile, lib))
-#         if os.path.exists(lib_path):
-#             return lib_path
-
-#     raise Exception("Could not resolve library: " + lib)
-
-
-def check_vulkan_max_version(version):
+def check_vulkan_max_version(version: str) -> bool:
     try:
-        subprocess.check_output(
+        _ = subprocess.check_output(
             ["pkg-config", "vulkan", f"--max-version={version}"],
         )
         return True
@@ -146,10 +142,10 @@ def check_vulkan_max_version(version):
         return False
 
 
-def get_homebrew_prefix():
+def get_homebrew_prefix() -> str:
     # set default to standard ARM path, intel path is already in the vulkan
     # loader search array
-    result = "/opt/homebrew"
+    result: str = "/opt/homebrew"
     try:
         result = subprocess.check_output(
             ["brew", "--prefix"],
@@ -162,29 +158,34 @@ def get_homebrew_prefix():
     return result
 
 
-def install_name_tool_change(old, new, objfile):
-    subprocess.call(
+def install_name_tool_change(old: str, new: str, objfile: str) -> None:
+    _ = subprocess.call(
         ["install_name_tool", "-change", old, new, objfile],
         stderr=subprocess.DEVNULL,
     )
 
 
-def install_name_tool_id(name, objfile):
-    subprocess.call(
+def install_name_tool_id(name: str, objfile: str) -> None:
+    _ = subprocess.call(
         ["install_name_tool", "-id", name, objfile],
         stderr=subprocess.DEVNULL,
     )
 
 
-def install_name_tool_add_rpath(rpath, binary):
-    subprocess.call(["install_name_tool", "-add_rpath", rpath, binary])
+def install_name_tool_add_rpath(rpath: str, binary: str) -> None:
+    _ = subprocess.call(["install_name_tool", "-add_rpath", rpath, binary])
 
 
-def install_name_tool_delete_rpath(rpath, binary):
-    subprocess.call(["install_name_tool", "-delete_rpath", rpath, binary])
+def install_name_tool_delete_rpath(rpath: str, binary: str) -> None:
+    _ = subprocess.call(["install_name_tool", "-delete_rpath", rpath, binary])
 
 
-def libraries(objfile, result=None, result_relative=None, rpaths=None):
+def libraries(
+    objfile: str,
+    result: dict[str, set[str]] | None = None,
+    result_relative: set[str] | None = None,
+    rpaths: list[str] | None = None,
+) -> tuple[dict[str, set[str]], set[str]]:
     if result is None:
         result = {}
 
@@ -194,41 +195,45 @@ def libraries(objfile, result=None, result_relative=None, rpaths=None):
     if rpaths is None:
         rpaths = []
 
-    rpaths = get_rapths(objfile) + rpaths
+    rpaths = get_rpaths(objfile) + rpaths
+    libs_list: set[str]
+    libs_relative: set[str]
     libs_list, libs_relative = otool(objfile, rpaths)
     result[objfile] = libs_list
     result_relative |= libs_relative
 
     for lib in libs_list:
         if lib not in result:
-            libraries(lib, result, result_relative, rpaths)
+            _ = libraries(lib, result, result_relative, rpaths)
 
     return result, result_relative
 
 
-def lib_path(binary):
+def lib_path(binary: str) -> str:
     return os.path.join(os.path.dirname(binary), "lib")
 
 
-def resources_path(binary):
+def resources_path(binary: str) -> str:
     return os.path.join(os.path.dirname(binary), "../Resources")
 
 
-def lib_name(lib):
+def lib_name(lib: str) -> str:
     return os.path.join("@executable_path", "lib", os.path.basename(lib))
 
 
-def process_libraries(libs_dict, libs_dyn, binary):
-    libs_set = set(libs_dict)
+def process_libraries(
+    libs_dict: dict[str, set[str]], libs_dyn: set[str], binary: str
+) -> None:
+    libs_set: set[str] = set(libs_dict)
     # Remove binary from libs_set to prevent a duplicate of the binary being
     # added to the libs directory.
     libs_set.remove(binary)
 
     for src in libs_set:
-        name = lib_name(src)
-        dst = os.path.join(lib_path(binary), os.path.basename(src))
+        name: str = lib_name(src)
+        dst: str = os.path.join(lib_path(binary), os.path.basename(src))
 
-        shutil.copy(src, dst)
+        _ = shutil.copy(src, dst)
         os.chmod(dst, 0o755)
         install_name_tool_id(name, dst)
 
@@ -246,17 +251,17 @@ def process_libraries(libs_dict, libs_dyn, binary):
         install_name_tool_change(lib, lib_name(lib), binary)
 
 
-def process_swift_libraries(binary):
-    swift_stdlib_tool = subprocess.check_output(
+def process_swift_libraries(binary: str) -> None:
+    swift_stdlib_tool: str = subprocess.check_output(
         ["xcrun", "--find", "swift-stdlib-tool"],
         universal_newlines=True,
     ).strip()
     # from xcode11 on the dynamic swift libs reside in a separate directory from
     # the std one, might need versioned paths for future swift versions
-    swift_lib_path = os.path.join(swift_stdlib_tool, "../../lib/swift-5.0/macosx")
+    swift_lib_path: str = os.path.join(swift_stdlib_tool, "../../lib/swift-5.0/macosx")
     swift_lib_path = os.path.abspath(swift_lib_path)
 
-    command = [
+    command: list[str] = [
         swift_stdlib_tool,
         "--copy",
         "--platform",
@@ -270,16 +275,18 @@ def process_swift_libraries(binary):
     if os.path.exists(swift_lib_path):
         command.extend(["--source-libraries", swift_lib_path])
 
-    subprocess.check_output(command, universal_newlines=True)
+    _ = subprocess.check_output(command, universal_newlines=True)
 
     print(">> setting additional rpath for swift libraries")
     install_name_tool_add_rpath("@executable_path/lib", binary)
 
 
-def process_vulkan_loader(binary, loader_name, loader_relative_folder, library_node):
+def process_vulkan_loader(
+    binary: str, loader_name: str, loader_relative_folder: str, library_node: str
+) -> None:
     # https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderDriverInterface.md#example-macos-driver-search-path
     # https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderLayerInterface.md#macos-layer-discovery
-    loader_system_search_folders = [
+    loader_system_search_folders: list[str] = [
         os.path.join(os.path.expanduser("~"), ".config", loader_relative_folder),
         os.path.join("/etc/xdg", loader_relative_folder),
         os.path.join("/usr/local/etc", loader_relative_folder),
@@ -293,7 +300,7 @@ def process_vulkan_loader(binary, loader_name, loader_relative_folder, library_n
         ),  # old location
     ]
 
-    loader_system_folder = ""
+    loader_system_folder: str = ""
     for loader_system_search_folder in loader_system_search_folders:
         if os.path.exists(loader_system_search_folder):
             loader_system_folder = loader_system_search_folder
@@ -303,10 +310,10 @@ def process_vulkan_loader(binary, loader_name, loader_relative_folder, library_n
         print(">>> could not find loader folder " + loader_relative_folder)
         return
 
-    loader_bundle_folder = os.path.join(resources_path(binary), loader_relative_folder)
-    loader_system_path = os.path.join(loader_system_folder, loader_name)
-    loader_bundle_path = os.path.join(loader_bundle_folder, loader_name)
-    library_relative_folder = "../../../Frameworks/"
+    loader_bundle_folder: str = os.path.join(resources_path(binary), loader_relative_folder)
+    loader_system_path: str = os.path.join(loader_system_folder, loader_name)
+    loader_bundle_path: str = os.path.join(loader_bundle_folder, loader_name)
+    library_relative_folder: str = "../../../Frameworks/"
 
     if not os.path.exists(loader_system_path):
         print(">>> could not find loader " + loader_name)
@@ -315,43 +322,50 @@ def process_vulkan_loader(binary, loader_name, loader_relative_folder, library_n
     if not os.path.exists(loader_bundle_folder):
         os.makedirs(loader_bundle_folder)
 
-    loader_system_file = open(loader_system_path)
-    loader_json_data = json.load(loader_system_file)
-    library_path = loader_json_data[library_node]["library_path"]
-    library_system_path = os.path.join(loader_system_folder, library_path)
+    with open(loader_system_path, encoding="utf-8") as loader_system_file:
+        loader_json_data: _VulkanLoaderJson = cast(_VulkanLoaderJson, json.load(loader_system_file))
+    library_data_dict = loader_json_data[library_node]
+    library_path: str = library_data_dict["library_path"]
+    library_system_path: str = os.path.join(loader_system_folder, library_path)
 
     if not os.path.exists(library_system_path):
         print(">>> could not find loader library " + library_system_path)
         return
 
     print(">>> modifying and writing loader json " + loader_name)
-    loader_bundle_file = open(loader_bundle_path, "w")
-    loader_library_name = os.path.basename(library_system_path)
+    loader_library_name: str = os.path.basename(library_system_path)
     library_path = os.path.join(library_relative_folder, loader_library_name)
-    loader_json_data[library_node]["library_path"] = library_path
-    json.dump(loader_json_data, loader_bundle_file, indent=4)
+    library_data_dict["library_path"] = library_path
+    with open(loader_bundle_path, "w", encoding="utf-8") as loader_bundle_file:
+        json.dump(loader_json_data, loader_bundle_file, indent=4)
 
     print(">>> copying loader library " + loader_library_name)
-    framework_bundle_folder = os.path.join(
+    framework_bundle_folder: str = os.path.join(
         loader_bundle_folder,
         library_relative_folder,
     )
     if not os.path.exists(framework_bundle_folder):
         os.makedirs(framework_bundle_folder)
-    library_target_path = os.path.join(framework_bundle_folder, loader_library_name)
-    shutil.copy(library_system_path, library_target_path)
+    library_target_path: str = os.path.join(framework_bundle_folder, loader_library_name)
+    _ = shutil.copy(library_system_path, library_target_path)
 
 
-def remove_dev_tools_rapths(binary):
+def remove_dev_tools_rapths(binary: str) -> None:
     for path in get_rpaths_dev_tools(binary):
         install_name_tool_delete_rpath(path, binary)
 
 
-def process(binary):
+# Correct spelling alias
+remove_dev_tools_rpaths = remove_dev_tools_rapths
+
+
+def process(binary: str) -> None:
     binary = os.path.abspath(binary)
     if not os.path.exists(lib_path(binary)):
         os.makedirs(lib_path(binary))
     print(">> gathering all linked libraries")
+    libs: dict[str, set[str]]
+    libs_rel: set[str]
     libs, libs_rel = libraries(binary)
 
     print(">> copying and processing all linked libraries")

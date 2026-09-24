@@ -10,7 +10,29 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Protocol, TypedDict, cast
 from urllib.parse import quote
+
+
+class _Asset(TypedDict):
+    name: str
+    browser_download_url: str
+
+
+class _ReleaseData(TypedDict):
+    assets: list[_Asset]
+
+
+class _BuildMetadata(TypedDict):
+    workflow_number: str | int
+
+
+class _UpdateFormulaArgs(Protocol):
+    release_tag: str
+    cask: str
+    sha256: str | None
+    mpv_sha: str
+    mpv_build_sha: str
 
 
 def run(
@@ -22,26 +44,25 @@ def run(
 
 
 def release_asset_url(release_tag: str) -> str:
-    release = json.loads(
-        run(
+    release_data = cast(_ReleaseData, json.loads(run(
             [
                 "gh",
                 "api",
                 f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{release_tag}",
             ]
-        )
-    )
-    for asset in release["assets"]:
-        if asset["name"] == "mpv-macos-arm64.zip":
+        )))
+    assets: list[_Asset] = release_data.get("assets", [])
+    for asset in assets:
+        if asset.get("name") == "mpv-macos-arm64.zip":
             return asset["browser_download_url"]
     raise RuntimeError(f"mpv-macos-arm64.zip is missing from release {release_tag}")
 
 
 def verified_release_assets(
     release_tag: str, expected_checksum: str | None
-) -> tuple[str, dict[str, object]]:
+) -> tuple[str, _BuildMetadata]:
     with tempfile.TemporaryDirectory() as directory:
-        run(
+        _ = run(
             [
                 "gh",
                 "release",
@@ -53,7 +74,7 @@ def verified_release_assets(
                 directory,
             ]
         )
-        run(
+        _ = run(
             [
                 "gh",
                 "release",
@@ -65,7 +86,7 @@ def verified_release_assets(
                 directory,
             ]
         )
-        run(
+        _ = run(
             [
                 "gh",
                 "release",
@@ -91,9 +112,8 @@ def verified_release_assets(
             raise RuntimeError(
                 "Downloaded mpv-macos-arm64.zip failed SHA256 verification"
             )
-        metadata = json.loads(
-            Path(directory, "build-metadata.json").read_text(encoding="utf-8")
-        )
+        metadata_text = Path(directory, "build-metadata.json").read_text(encoding="utf-8")
+        metadata = cast(_BuildMetadata, json.loads(metadata_text))
         return checksum, metadata
 
 
@@ -101,7 +121,7 @@ def write_output(name: str, value: str) -> None:
     output_path = os.getenv("GITHUB_OUTPUT")
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output:
-            output.write(f"{name}={value}\n")
+            _ = output.write(f"{name}={value}\n")
 
 
 def generate_cask_content(
@@ -136,12 +156,13 @@ def generate_cask_content(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--release-tag", required=True)
-    parser.add_argument("--cask", choices=("nightly", "release"), required=True)
-    parser.add_argument("--sha256")
-    parser.add_argument("--mpv-sha", default="")
-    parser.add_argument("--mpv-build-sha", default="")
+    _ = parser.add_argument("--release-tag", required=True)
+    _ = parser.add_argument("--cask", choices=("nightly", "release"), required=True)
+    _ = parser.add_argument("--sha256")
+    _ = parser.add_argument("--mpv-sha", default="")
+    _ = parser.add_argument("--mpv-build-sha", default="")
     args = parser.parse_args()
+    args_typed = cast(_UpdateFormulaArgs, cast(object, args))
 
     token = os.getenv("HOMEBREW_TAP_TOKEN")
     if not token:
@@ -149,23 +170,24 @@ def main() -> int:
         return 0
 
     tap_repo = os.getenv("TAP_REPO") or "Justin24506/homebrew-tap"
-    archive_url = release_asset_url(args.release_tag)
-    checksum, metadata = verified_release_assets(args.release_tag, args.sha256)
+    archive_url = release_asset_url(args_typed.release_tag)
+    checksum, metadata = verified_release_assets(args_typed.release_tag, args_typed.sha256)
 
-    is_nightly = args.cask == "nightly"
+    is_nightly: bool = args_typed.cask == "nightly"
 
     if is_nightly:
         cask_path = Path("Casks/mpv@nightly.rb")
         cask_token = "mpv@nightly"
         description = "Media player (nightly build)"
-        version = f"nightly-{metadata['workflow_number']}"
+        workflow_number = metadata["workflow_number"]
+        version = f"nightly-{workflow_number}"
         commit_subject = "Nightly cask update"
     else:
         cask_path = Path("Casks/mpv.rb")
         cask_token = "mpv"
         description = "Media player"
-        version = args.release_tag.removeprefix("v")
-        commit_subject = f"Update mpv cask to {args.release_tag}"
+        version = args_typed.release_tag.removeprefix("v")
+        commit_subject = f"Update mpv cask to {args_typed.release_tag}"
 
     github_repo = os.environ["GITHUB_REPOSITORY"]
     cask_content = generate_cask_content(
@@ -175,8 +197,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as directory:
         tap_directory = Path(directory, "tap")
         clone_env = os.environ | {"GH_TOKEN": token}
-        run(["gh", "repo", "clone", tap_repo, str(tap_directory)], env=clone_env)
-        run(
+        _ = run(["gh", "repo", "clone", tap_repo, str(tap_directory)], env=clone_env)
+        _ = run(
             [
                 "git",
                 "remote",
@@ -188,9 +210,9 @@ def main() -> int:
         )
         cask_file = tap_directory / cask_path
         cask_file.parent.mkdir(parents=True, exist_ok=True)
-        cask_file.write_text(cask_content, encoding="utf-8")
+        _ = cask_file.write_text(cask_content, encoding="utf-8")
 
-        run(["git", "add", str(cask_path)], cwd=tap_directory)
+        _ = run(["git", "add", str(cask_path)], cwd=tap_directory)
 
         changed = (
             subprocess.run(
@@ -202,8 +224,8 @@ def main() -> int:
             print("Homebrew cask already matches the release.")
             return 0
 
-        run(["git", "config", "user.name", "github-actions[bot]"], cwd=tap_directory)
-        run(
+        _ = run(["git", "config", "user.name", "github-actions[bot]"], cwd=tap_directory)
+        _ = run(
             [
                 "git",
                 "config",
@@ -213,13 +235,13 @@ def main() -> int:
             cwd=tap_directory,
         )
         message = ["git", "commit", "-m", commit_subject]
-        if args.mpv_sha and args.mpv_build_sha:
+        if args_typed.mpv_sha and args_typed.mpv_build_sha:
             message.extend(
-                ["-m", f"mpv: {args.mpv_sha}\nmpv-build: {args.mpv_build_sha}"]
+                ["-m", f"mpv: {args_typed.mpv_sha}\nmpv-build: {args_typed.mpv_build_sha}"]
             )
-        run(message, cwd=tap_directory)
+        _ = run(message, cwd=tap_directory)
         commit_sha = run(["git", "rev-parse", "HEAD"], cwd=tap_directory)
-        run(["git", "push", "origin", "HEAD"], cwd=tap_directory)
+        _ = run(["git", "push", "origin", "HEAD"], cwd=tap_directory)
 
     commit_url = f"https://github.com/{tap_repo}/commit/{commit_sha}"
     write_output("tap_commit_url", commit_url)

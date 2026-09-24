@@ -51,7 +51,7 @@ def write_outputs(outputs: dict[str, str]) -> None:
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output:
             for key, value in outputs.items():
-                output.write(f"{key}={value}\n")
+                _ = output.write(f"{key}={value}\n")
 
 
 def main() -> int:

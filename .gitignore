@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+build/
+dist/
+.eggs/
+*.egg
+pip-wheel-metadata/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.basedpyright/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.dmg
+
+# Build artifacts for mpv
+mpv.app/
+*.zip
+SHA256SUMS.txt
+build-metadata.json
+mpv-build/
+mpv/
+*.log
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+.zed/
+
+# Temp
+tmp/
+temp/

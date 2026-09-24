@@ -8,6 +8,29 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Protocol, TypedDict, cast
+
+
+class _BuildMetadata(TypedDict):
+    mpv_sha: str
+    mpv_build_sha: str
+    libdovi_sha: str
+    cargo_c_sha: str
+    build_finished_at: str
+    workflow_number: str | int
+    github_actions_run_url: str
+    build_duration_seconds: str | int
+    artifact: str
+    sha256: str
+
+
+class _ReleaseNotesArgs(Protocol):
+    metadata: Path
+    output: Path
+    title: str
+    previous_mpv: str
+    previous_mpv_build: str
+    custom_notes: str
 
 
 def changelog(repository: str, previous: str, current: str) -> str:
@@ -25,25 +48,29 @@ def changelog(repository: str, previous: str, current: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metadata", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--title", required=True)
-    parser.add_argument("--previous-mpv", default="")
-    parser.add_argument("--previous-mpv-build", default="")
-    parser.add_argument("--custom-notes", default="")
+    _ = parser.add_argument("--metadata", required=True, type=Path)
+    _ = parser.add_argument("--output", required=True, type=Path)
+    _ = parser.add_argument("--title", required=True)
+    _ = parser.add_argument("--previous-mpv", default="")
+    _ = parser.add_argument("--previous-mpv-build", default="")
+    _ = parser.add_argument("--custom-notes", default="")
     args = parser.parse_args()
+    args_typed = cast(_ReleaseNotesArgs, cast(object, args))
 
-    metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
+    metadata_text: str = args_typed.metadata.read_text(encoding="utf-8")
+    metadata: _BuildMetadata = cast(_BuildMetadata, json.loads(metadata_text))
     try:
-        mpv_changes = changelog("mpv-player/mpv", args.previous_mpv, metadata["mpv_sha"])
+        mpv_changes = changelog("mpv-player/mpv", args_typed.previous_mpv, metadata["mpv_sha"])
         mpv_build_changes = changelog(
-            "mpv-player/mpv-build", args.previous_mpv_build, metadata["mpv_build_sha"]
+            "mpv-player/mpv-build", args_typed.previous_mpv_build, metadata["mpv_build_sha"]
         )
     except subprocess.CalledProcessError as error:
-        print(error.stderr, file=sys.stderr, end="")
+        err = cast(str | None, cast(object, error.stderr))
+        if err is not None:
+            print(err, file=sys.stderr, end="")
         return error.returncode
 
-    notes = f"""## {args.title}
+    notes = f"""## {args_typed.title}
 
 - Build timestamp: {metadata['build_finished_at']}
 - Workflow number: {metadata['workflow_number']}
@@ -63,9 +90,9 @@ def main() -> int:
 
 {mpv_build_changes}
 """
-    if args.custom_notes.strip():
-        notes += f"\n## Release notes\n\n{args.custom_notes.strip()}\n"
-    args.output.write_text(notes, encoding="utf-8")
+    if args_typed.custom_notes.strip():
+        notes += f"\n## Release notes\n\n{args_typed.custom_notes.strip()}\n"
+    _ = args_typed.output.write_text(notes, encoding="utf-8")
     return 0
 
 

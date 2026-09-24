@@ -7,6 +7,26 @@ import argparse
 import json
 import subprocess
 import sys
+from typing import Protocol, TypedDict, cast
+
+
+class _CommitInner(TypedDict):
+    message: str
+
+
+class _Commit(TypedDict):
+    sha: str
+    commit: _CommitInner
+
+
+class _CompareResponse(TypedDict):
+    commits: list[_Commit]
+
+
+class _CompareArgs(Protocol):
+    repository: str
+    previous: str
+    current: str
 
 
 def compare(repository: str, previous: str, current: str) -> str:
@@ -19,25 +39,28 @@ def compare(repository: str, previous: str, current: str) -> str:
         capture_output=True,
         text=True,
     )
-    commits = json.loads(result.stdout).get("commits", [])
+    raw_data = cast(_CompareResponse, json.loads(result.stdout))
+    commits: list[_Commit] = raw_data.get("commits", [])
     return "\n".join(
-        f"- [{commit['sha'][:7]}](https://github.com/{repository}/commit/{commit['sha']}) "
-        f"{commit['commit']['message'].splitlines()[0]}"
+        f"- [{commit['sha'][:7]}](https://github.com/{repository}/commit/{commit['sha']}) {commit['commit']['message'].splitlines()[0]}"
         for commit in commits
     )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("repository")
-    parser.add_argument("previous")
-    parser.add_argument("current")
+    _ = parser.add_argument("repository")
+    _ = parser.add_argument("previous")
+    _ = parser.add_argument("current")
     args = parser.parse_args()
+    args_typed = cast(_CompareArgs, cast(object, args))
 
     try:
-        print(compare(args.repository, args.previous, args.current))
+        print(compare(args_typed.repository, args_typed.previous, args_typed.current))
     except subprocess.CalledProcessError as error:
-        print(error.stderr, file=sys.stderr, end="")
+        err = cast(str | None, cast(object, error.stderr))
+        if err is not None:
+            print(err, file=sys.stderr, end="")
         return error.returncode
     return 0
 
