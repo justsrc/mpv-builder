@@ -70,7 +70,7 @@ jobs:
   build-and-release:
     needs: check-upstream
     if: ${{ github.event_name != 'schedule' || needs.check-upstream.outputs.should_build == 'true' }}
-    runs-on: macos-26
+    runs-on: xcode-27
     env:
       CFLAGS: -I/opt/homebrew/include
       LDFLAGS: -L/opt/homebrew/lib
