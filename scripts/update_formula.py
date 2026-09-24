@@ -171,7 +171,7 @@ def main() -> int:
         print("HOMEBREW_TAP_TOKEN is not configured; skipping Homebrew update.")
         return 0
 
-    tap_repo = os.getenv("TAP_REPO") or "Justin24506/homebrew-tap"
+    tap_repo = os.getenv("TAP_REPO") or "justsrc/homebrew-tap"
     archive_url = release_asset_url(args_typed.release_tag)
     checksum, metadata = verified_release_assets(args_typed.release_tag, args_typed.sha256)
 
