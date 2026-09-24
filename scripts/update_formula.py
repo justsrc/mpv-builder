@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
@@ -40,9 +41,16 @@ class _UpdateFormulaArgs(Protocol):
 def run(
     command: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    return subprocess.run(
-        command, check=True, cwd=cwd, env=env, capture_output=True, text=True
-    ).stdout.strip()
+    result = subprocess.run(
+        command, check=False, cwd=cwd, env=env, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        if result.stderr:
+            print(result.stderr, file=sys.stderr, flush=True)
+        raise subprocess.CalledProcessError(
+            result.returncode, command, output=result.stdout, stderr=result.stderr
+        )
+    return result.stdout.strip()
 
 
 def release_asset_url(release_tag: str) -> str:
@@ -255,25 +263,46 @@ def main() -> int:
         _ = run(["git", "push", "-u", "origin", branch_name], cwd=tap_directory)
 
         pr_body = build_info or f"Update the `{cask_token}` cask to `{version}`."
-        pr_url = run(
-            [
-                "gh",
-                "pr",
-                "create",
-                "--repo",
-                tap_repo,
-                "--base",
-                base_branch,
-                "--head",
-                branch_name,
-                "--title",
-                commit_subject,
-                "--body",
-                pr_body,
-            ],
-            cwd=tap_directory,
-            env=clone_env,
-        )
+        pr_args = [
+            "gh",
+            "pr",
+            "create",
+            "--repo",
+            tap_repo,
+            "--base",
+            base_branch,
+            "--head",
+            branch_name,
+            "--title",
+            commit_subject,
+            "--body",
+            pr_body,
+        ]
+        try:
+            pr_url = run(pr_args, cwd=tap_directory, env=clone_env)
+        except subprocess.CalledProcessError:
+            existing_pr = run(
+                [
+                    "gh",
+                    "pr",
+                    "list",
+                    "--repo",
+                    tap_repo,
+                    "--head",
+                    branch_name,
+                    "--state",
+                    "open",
+                    "--json",
+                    "url",
+                    "--jq",
+                    ".[0].url // empty",
+                ],
+                cwd=tap_directory,
+                env=clone_env,
+            )
+            if not existing_pr:
+                raise
+            pr_url = existing_pr
 
     write_output("tap_pr_url", pr_url)
     print(f"tap_pr_url={pr_url}")
