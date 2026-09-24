@@ -18,9 +18,9 @@ unchanged revisions are restored, while changed revisions are built once and
 saved for later runs.
 
 Install the rolling build with `brew install --cask mpv@nightly` after tapping
-`Justin24506/tap`. The generated cask installs `mpv.app` and verifies the
+`justsrc/tap`. The generated cask installs `mpv.app` and verifies the
 published SHA-256 checksum.
 
 Set `HOMEBREW_TAP_TOKEN` only when the Homebrew tap is in another repository.
-By default the updater targets `Justin24506/homebrew-tap`; set the
+By default the updater targets `justsrc/homebrew-tap`; set the
 `HOMEBREW_TAP_REPO` repository variable to use a different tap.
