@@ -183,13 +183,13 @@ def main() -> int:
         description = "Media player (nightly build)"
         workflow_number = metadata["workflow_number"]
         version = f"nightly-{workflow_number}"
-        commit_subject = "Nightly cask update"
+        commit_subject = f"{cask_token} {version}"
     else:
         cask_path = Path("Casks/mpv.rb")
         cask_token = "mpv"
         description = "Media player"
         version = args_typed.release_tag.removeprefix("v")
-        commit_subject = f"Update mpv cask to {args_typed.release_tag}"
+        commit_subject = f"{cask_token} {version}"
 
     github_repo = os.environ["GITHUB_REPOSITORY"]
     cask_content = generate_cask_content(
