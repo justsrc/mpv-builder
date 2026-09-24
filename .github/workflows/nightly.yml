@@ -233,6 +233,7 @@ jobs:
 
       - name: Generate release notes
         env:
+          GH_TOKEN: ${{ github.token }}
           PREVIOUS_MPV_SHA: ${{ needs.check-upstream.outputs.previous_mpv_sha }}
           PREVIOUS_MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.previous_mpv_build_sha }}
           RELEASE_TITLE: ${{ steps.release.outputs.title }}
