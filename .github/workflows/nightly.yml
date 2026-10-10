@@ -72,6 +72,7 @@ jobs:
     if: ${{ github.event_name != 'schedule' || needs.check-upstream.outputs.should_build == 'true' }}
     runs-on: xcode-27
     env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
       CFLAGS: -I/opt/homebrew/include
       LDFLAGS: -L/opt/homebrew/lib
       PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/glslang/lib/pkgconfig:/opt/homebrew/opt/libarchive/lib/pkgconfig
