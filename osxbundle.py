@@ -77,6 +77,32 @@ def sign_bundle(binary_name: str) -> None:
     _ = subprocess.run(["codesign", "--force", "-s", "-", bundle_path(binary_name)])
 
 
+def bundled_libraries(binary_name: str) -> list[str]:
+    output: str = subprocess.check_output(
+        ["otool", "-L", target_binary(binary_name)], universal_newlines=True
+    )
+    return [line.split()[0] for line in output.splitlines() if line.startswith("\t")]
+
+
+def verify_bundled_libraries(binary_name: str) -> None:
+    """Fail when a linked library was not bundled, or still points outside the app.
+
+    A library left out of the bundle, or one still recording a build machine
+    path, produces an app that installs cleanly and then dies at launch. Both
+    look identical to CI, which only copies files, so check here instead.
+    """
+    unresolved: list[str] = []
+    for lib in bundled_libraries(binary_name):
+        if dylib_unhell.is_user_lib(target_binary(binary_name), lib):
+            unresolved.append(lib)
+
+    if unresolved:
+        names: str = ", ".join(sorted(unresolved))
+        bundle: str = bundle_path(binary_name)
+        raise RuntimeError(f"These libraries were not bundled into {bundle}: {names}")
+    print(f"> verified every linked library resolves inside {bundle_path(binary_name)}")
+
+
 def bundle_version(build_path: str) -> str:
     version: str = "UNKNOWN"
     version_h_path: str = os.path.join(build_path, "common", "version.h")
@@ -130,6 +156,7 @@ def main() -> None:
     if deps:
         print("> bundling dependencies")
         dylib_unhell.process(target_binary(binary_name))
+        verify_bundled_libraries(binary_name)
 
     print("> signing bundle with ad-hoc pseudo identity")
     sign_bundle(binary_name)
