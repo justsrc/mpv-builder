@@ -15,8 +15,6 @@ from pathlib import Path
 from typing import Protocol, TypedDict, cast
 from urllib.parse import quote
 
-CASK_TEMPLATE = Path(__file__).with_name("cask.rb.template")
-
 VERSION_STANZA = re.compile(r'^([ \t]*)version[ \t]+["\'][^"\']*["\'].*$', re.MULTILINE)
 SHA256_STANZA = re.compile(
     r'^([ \t]*)sha256[ \t]+(?::no_check|["\'][^"\']*["\']).*$', re.MULTILINE
@@ -140,28 +138,6 @@ def write_output(name: str, value: str) -> None:
             _ = output.write(f"{name}={value}\n")
 
 
-def generate_cask_content(
-    cask_token: str,
-    version: str,
-    checksum: str,
-    archive_url: str,
-    description: str,
-    repo: str,
-    is_nightly: bool,
-) -> str:
-    """Generate RuboCop-compliant Cask file content."""
-    sha256_stanza = "sha256 :no_check" if is_nightly else f'sha256 "{checksum}"'
-
-    return CASK_TEMPLATE.read_text(encoding="utf-8").format(
-        cask_token=cask_token,
-        version=version,
-        sha256_stanza=sha256_stanza,
-        archive_url=archive_url,
-        description=description,
-        repo=repo,
-    )
-
-
 def update_cask_content(cask_content: str, version: str, checksum: str, is_nightly: bool) -> str:
     """Rewrite only the `version` and `sha256` stanzas of an existing cask.
 
@@ -202,7 +178,7 @@ def main() -> int:
         return 0
 
     tap_repo = os.getenv("TAP_REPO") or "justsrc/homebrew-tap"
-    archive_url = release_asset_url(args_typed.release_tag)
+    _ = release_asset_url(args_typed.release_tag)
     checksum, metadata = verified_release_assets(args_typed.release_tag, args_typed.sha256)
 
     is_nightly: bool = args_typed.cask == "nightly"
@@ -210,18 +186,14 @@ def main() -> int:
     if is_nightly:
         cask_path = Path("Casks/mpv@nightly.rb")
         cask_token = "mpv@nightly"
-        description = "Media player (nightly build)"
         workflow_number = metadata["workflow_number"]
         version = f"nightly-{workflow_number}"
         commit_subject = f"{cask_token} {version}"
     else:
         cask_path = Path("Casks/mpv.rb")
         cask_token = "mpv"
-        description = "Media player"
         version = args_typed.release_tag.removeprefix("v")
         commit_subject = f"{cask_token} {version}"
-
-    github_repo = os.environ["GITHUB_REPOSITORY"]
 
     with tempfile.TemporaryDirectory() as directory:
         tap_directory = Path(directory, "tap")
@@ -238,18 +210,16 @@ def main() -> int:
             cwd=tap_directory,
         )
         cask_file = tap_directory / cask_path
-        cask_file.parent.mkdir(parents=True, exist_ok=True)
-        # Only the version and sha256 stanzas are rewritten, so hand edits to
-        # the tap survive. The template is just the seed for a cask that does
-        # not exist yet.
-        cask_content = (
-            update_cask_content(
-                cask_file.read_text(encoding="utf-8"), version, checksum, is_nightly
+        # The tap owns the cask. Only the version and sha256 stanzas are
+        # rewritten, so anything hand written there survives later runs. A
+        # missing cask has to be created in the tap, not regenerated here,
+        # because there is no template to regenerate from.
+        if not cask_file.exists():
+            raise RuntimeError(
+                f"{cask_path} does not exist in {tap_repo}; add the cask to the tap first"
             )
-            if cask_file.exists()
-            else generate_cask_content(
-                cask_token, version, checksum, archive_url, description, github_repo, is_nightly
-            )
+        cask_content = update_cask_content(
+            cask_file.read_text(encoding="utf-8"), version, checksum, is_nightly
         )
         _ = cask_file.write_text(cask_content, encoding="utf-8")
 
