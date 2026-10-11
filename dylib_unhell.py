@@ -32,7 +32,7 @@ def is_user_lib(objfile: str, libname: str) -> bool:
         and "libc." not in libname
         and "libgcc." not in libname
         and os.path.basename(libname) != "Python"
-        and os.path.basename(objfile) not in libname
+        and os.path.basename(libname) != os.path.basename(objfile)
         and "libswift" not in libname
     )
 
