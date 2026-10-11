@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,11 @@ from typing import Protocol, TypedDict, cast
 from urllib.parse import quote
 
 CASK_TEMPLATE = Path(__file__).with_name("cask.rb.template")
+
+VERSION_STANZA = re.compile(r'^([ \t]*)version[ \t]+["\'][^"\']*["\'].*$', re.MULTILINE)
+SHA256_STANZA = re.compile(
+    r'^([ \t]*)sha256[ \t]+(?::no_check|["\'][^"\']*["\']).*$', re.MULTILINE
+)
 
 
 class _Asset(TypedDict):
@@ -156,6 +162,30 @@ def generate_cask_content(
     )
 
 
+def update_cask_content(cask_content: str, version: str, checksum: str, is_nightly: bool) -> str:
+    """Rewrite only the `version` and `sha256` stanzas of an existing cask.
+
+    The rest of the file is left byte for byte alone so hand edits to the tap,
+    such as a zap stanza that needs `brew generate-zap` to discover, survive
+    later updates.
+    """
+    sha256_stanza = "sha256 :no_check" if is_nightly else f'sha256 "{checksum}"'
+
+    updated, version_count = VERSION_STANZA.subn(
+        lambda match: f'{match.group(1)}version "{version}"', cask_content, count=1
+    )
+    if version_count == 0:
+        raise RuntimeError("The cask has no version stanza to update")
+
+    updated, sha256_count = SHA256_STANZA.subn(
+        lambda match: f"{match.group(1)}{sha256_stanza}", updated, count=1
+    )
+    if sha256_count == 0:
+        raise RuntimeError("The cask has no sha256 stanza to update")
+
+    return updated
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     _ = parser.add_argument("--release-tag", required=True)
@@ -192,9 +222,6 @@ def main() -> int:
         commit_subject = f"{cask_token} {version}"
 
     github_repo = os.environ["GITHUB_REPOSITORY"]
-    cask_content = generate_cask_content(
-        cask_token, version, checksum, archive_url, description, github_repo, is_nightly
-    )
 
     with tempfile.TemporaryDirectory() as directory:
         tap_directory = Path(directory, "tap")
@@ -212,6 +239,18 @@ def main() -> int:
         )
         cask_file = tap_directory / cask_path
         cask_file.parent.mkdir(parents=True, exist_ok=True)
+        # Only the version and sha256 stanzas are rewritten, so hand edits to
+        # the tap survive. The template is just the seed for a cask that does
+        # not exist yet.
+        cask_content = (
+            update_cask_content(
+                cask_file.read_text(encoding="utf-8"), version, checksum, is_nightly
+            )
+            if cask_file.exists()
+            else generate_cask_content(
+                cask_token, version, checksum, archive_url, description, github_repo, is_nightly
+            )
+        )
         _ = cask_file.write_text(cask_content, encoding="utf-8")
 
         _ = run(["git", "add", str(cask_path)], cwd=tap_directory)
