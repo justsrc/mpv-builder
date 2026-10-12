@@ -14,9 +14,21 @@ from datetime import UTC, datetime
 UPSTREAMS = {
     "mpv": "https://github.com/mpv-player/mpv.git",
     "mpv_build": "https://github.com/mpv-player/mpv-build.git",
+    "ffmpeg": "https://github.com/FFmpeg/FFmpeg.git",
+    "libass": "https://github.com/libass/libass.git",
+    "libplacebo": "https://github.com/haasn/libplacebo.git",
     "libdovi": "https://github.com/quietvoid/dovi_tool.git",
     "cargo_c": "https://github.com/lu-zero/cargo-c.git",
 }
+
+# Revisions that decide what actually ends up in the binary. mpv-build
+# tracks master for ffmpeg, libass and libplacebo unless a branch pin says
+# otherwise, so each one has to be pinned and watched like mpv itself.
+PINNED = ("mpv", "mpv_build", "ffmpeg", "libass", "libplacebo")
+
+
+def release_label(name: str) -> str:
+    return name.replace("_", "-")
 
 
 def head_sha(repository: str) -> str:
@@ -64,21 +76,17 @@ def main() -> int:
         return 1
 
     body = previous_nightly_body()
-    previous_mpv = recorded_sha(body, "mpv")
-    previous_mpv_build = recorded_sha(body, "mpv-build")
-    changed = current["mpv"] != previous_mpv or current["mpv_build"] != previous_mpv_build
+    previous = {name: recorded_sha(body, release_label(name)) for name in PINNED}
+    changed = any(current[name] != previous[name] for name in PINNED)
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    outputs = {
-        "should_build": str(changed).lower(),
-        "mpv_sha": current["mpv"],
-        "mpv_build_sha": current["mpv_build"],
-        "libdovi_sha": current["libdovi"],
-        "cargo_c_sha": current["cargo_c"],
-        "previous_mpv_sha": previous_mpv,
-        "previous_mpv_build_sha": previous_mpv_build,
-        "checked_at": timestamp,
-    }
+    outputs = {"should_build": str(changed).lower()}
+    for name in PINNED:
+        outputs[f"{name}_sha"] = current[name]
+        outputs[f"previous_{name}_sha"] = previous[name]
+    outputs["libdovi_sha"] = current["libdovi"]
+    outputs["cargo_c_sha"] = current["cargo_c"]
+    outputs["checked_at"] = timestamp
     write_outputs(outputs)
     for key, value in outputs.items():
         print(f"{key}={value}")

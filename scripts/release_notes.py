@@ -14,6 +14,9 @@ from typing import Protocol, TypedDict, cast
 class _BuildMetadata(TypedDict):
     mpv_sha: str
     mpv_build_sha: str
+    ffmpeg_sha: str
+    libass_sha: str
+    libplacebo_sha: str
     libdovi_sha: str
     cargo_c_sha: str
     build_finished_at: str
@@ -30,6 +33,9 @@ class _ReleaseNotesArgs(Protocol):
     title: str
     previous_mpv: str
     previous_mpv_build: str
+    previous_ffmpeg: str
+    previous_libass: str
+    previous_libplacebo: str
     custom_notes: str
 
 
@@ -53,6 +59,9 @@ def main() -> int:
     _ = parser.add_argument("--title", required=True)
     _ = parser.add_argument("--previous-mpv", default="")
     _ = parser.add_argument("--previous-mpv-build", default="")
+    _ = parser.add_argument("--previous-ffmpeg", default="")
+    _ = parser.add_argument("--previous-libass", default="")
+    _ = parser.add_argument("--previous-libplacebo", default="")
     _ = parser.add_argument("--custom-notes", default="")
     args = parser.parse_args()
     args_typed = cast(_ReleaseNotesArgs, cast(object, args))
@@ -78,6 +87,9 @@ def main() -> int:
 - Build duration: {metadata['build_duration_seconds']} seconds
 - mpv SHA: {metadata['mpv_sha']}
 - mpv-build SHA: {metadata['mpv_build_sha']}
+- ffmpeg SHA: {metadata['ffmpeg_sha']}
+- libass SHA: {metadata['libass_sha']}
+- libplacebo SHA: {metadata['libplacebo_sha']}
 - libdovi SHA: {metadata['libdovi_sha']}
 - cargo-c SHA: {metadata['cargo_c_sha']}
 - SHA256 (`{metadata['artifact']}`): `{metadata['sha256']}`
