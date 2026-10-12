@@ -25,11 +25,13 @@ install_brew_dependencies() {
   brew update
   brew install \
     aom \
+    aribb24 \
     autoconf \
     automake \
     dav1d \
     docutils \
     fontconfig \
+    frei0r \
     freetype \
     fribidi \
     game-music-emu \
@@ -52,6 +54,7 @@ install_brew_dependencies() {
     libmodplug \
     libogg \
     libplacebo \
+    librist \
     libsoxr \
     libssh \
     libsixel \
@@ -68,22 +71,32 @@ install_brew_dependencies() {
     molten-vk \
     mujs \
     ninja \
+    opencore-amr \
+    openjpeg \
     opus \
     openssl@3 \
     pkg-config \
+    qrencode \
     rav1e \
     rubberband \
     samba \
     shaderc \
     snappy \
+    speex \
+    srt \
     svt-av1 \
+    tesseract \
+    theora \
     uchardet \
     vapoursynth \
     vulkan-loader \
     webp \
+    whisper.cpp \
     x264 \
     x265 \
+    xvid \
     xxhash \
+    zeromq \
     zimg
 }
 
