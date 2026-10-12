@@ -221,6 +221,16 @@ jobs:
           ./build
           popd >/dev/null
 
+      - name: Run mpv unit tests
+        run: |
+          pushd "$MPV_BUILD_ROOT/mpv" >/dev/null
+          meson test -C build
+          popd >/dev/null
+
+      - name: Print mpv test log
+        if: ${{ failure() }}
+        run: cat "$MPV_BUILD_ROOT/mpv/build/meson-logs/testlog.txt"
+
       - name: Bundle mpv.app
         id: bundle
         run: |

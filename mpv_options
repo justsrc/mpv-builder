@@ -1,3 +1,6 @@
+--werror
+-Dobjc_args=-Wno-error=deprecated -Wno-error=deprecated-declarations
+-Dtests=true
 -Dvideotoolbox-gl=enabled
 -Dcocoa=enabled
 -Dcaca=enabled
