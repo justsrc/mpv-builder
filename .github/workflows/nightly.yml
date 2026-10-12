@@ -244,6 +244,10 @@ jobs:
           popd >/dev/null
           popd >/dev/null
 
+      - name: Smoke test the bundled binary
+        run: |
+          "${{ steps.bundle.outputs.bundle_path }}/Contents/MacOS/mpv" -v --no-config
+
       - name: Package release assets and metadata
         id: package
         env:
