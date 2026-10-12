@@ -14,3 +14,4 @@
 -Ddvdnav=enabled
 -Dcdda=enabled
 -Diconv=enabled
+-Dswift-flags=-target arm64-apple-macosx12.0
