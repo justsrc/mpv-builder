@@ -52,10 +52,16 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
       mpv_sha: ${{ steps.check.outputs.mpv_sha }}
       mpv_build_sha: ${{ steps.check.outputs.mpv_build_sha }}
+      ffmpeg_sha: ${{ steps.check.outputs.ffmpeg_sha }}
+      libass_sha: ${{ steps.check.outputs.libass_sha }}
+      libplacebo_sha: ${{ steps.check.outputs.libplacebo_sha }}
       libdovi_sha: ${{ steps.check.outputs.libdovi_sha }}
       cargo_c_sha: ${{ steps.check.outputs.cargo_c_sha }}
       previous_mpv_sha: ${{ steps.check.outputs.previous_mpv_sha }}
       previous_mpv_build_sha: ${{ steps.check.outputs.previous_mpv_build_sha }}
+      previous_ffmpeg_sha: ${{ steps.check.outputs.previous_ffmpeg_sha }}
+      previous_libass_sha: ${{ steps.check.outputs.previous_libass_sha }}
+      previous_libplacebo_sha: ${{ steps.check.outputs.previous_libplacebo_sha }}
 
     steps:
       - name: Check out pipeline source
@@ -191,10 +197,16 @@ jobs:
       - name: Configure pinned mpv source
         env:
           MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
+          FFMPEG_SHA: ${{ needs.check-upstream.outputs.ffmpeg_sha }}
+          LIBASS_SHA: ${{ needs.check-upstream.outputs.libass_sha }}
+          LIBPLACEBO_SHA: ${{ needs.check-upstream.outputs.libplacebo_sha }}
         run: |
           cp ffmpeg_options mpv_options "$MPV_BUILD_ROOT/"
           pushd "$MPV_BUILD_ROOT" >/dev/null
           ./use-mpv-master
+          ./use-ffmpeg-custom "$FFMPEG_SHA"
+          ./use-libass-custom "$LIBASS_SHA"
+          ./use-libplacebo-custom "$LIBPLACEBO_SHA"
           ./update --skip-selfupdate
           git -C mpv fetch --depth=1 origin "$MPV_SHA"
           git -C mpv checkout --detach --quiet FETCH_HEAD
@@ -231,6 +243,9 @@ jobs:
           METADATA_PATH: ${{ runner.temp }}/build-metadata.json
           MPV_SHA: ${{ needs.check-upstream.outputs.mpv_sha }}
           MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.mpv_build_sha }}
+          FFMPEG_SHA: ${{ needs.check-upstream.outputs.ffmpeg_sha }}
+          LIBASS_SHA: ${{ needs.check-upstream.outputs.libass_sha }}
+          LIBPLACEBO_SHA: ${{ needs.check-upstream.outputs.libplacebo_sha }}
           LIBDOVI_SHA: ${{ steps.libdovi.outputs.libdovi_sha }}
           CARGO_C_SHA: ${{ needs.check-upstream.outputs.cargo_c_sha }}
         run: bash scripts/create_checksums.sh
@@ -240,6 +255,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREVIOUS_MPV_SHA: ${{ needs.check-upstream.outputs.previous_mpv_sha }}
           PREVIOUS_MPV_BUILD_SHA: ${{ needs.check-upstream.outputs.previous_mpv_build_sha }}
+          PREVIOUS_FFMPEG_SHA: ${{ needs.check-upstream.outputs.previous_ffmpeg_sha }}
+          PREVIOUS_LIBASS_SHA: ${{ needs.check-upstream.outputs.previous_libass_sha }}
+          PREVIOUS_LIBPLACEBO_SHA: ${{ needs.check-upstream.outputs.previous_libplacebo_sha }}
           RELEASE_TITLE: ${{ steps.release.outputs.title }}
           CUSTOM_RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
@@ -249,6 +267,9 @@ jobs:
             --title "$RELEASE_TITLE" \
             --previous-mpv "$PREVIOUS_MPV_SHA" \
             --previous-mpv-build "$PREVIOUS_MPV_BUILD_SHA" \
+            --previous-ffmpeg "$PREVIOUS_FFMPEG_SHA" \
+            --previous-libass "$PREVIOUS_LIBASS_SHA" \
+            --previous-libplacebo "$PREVIOUS_LIBPLACEBO_SHA" \
             --custom-notes "$CUSTOM_RELEASE_NOTES"
 
       - name: Create or update GitHub release
