@@ -44,6 +44,7 @@ install_brew_dependencies() {
     libarchive \
     libass \
     libbluray \
+    libcaca \
     libcdio \
     libcdio-paranoia \
     libdvdnav \
@@ -53,6 +54,7 @@ install_brew_dependencies() {
     libplacebo \
     libsoxr \
     libssh \
+    libsixel \
     libtool \
     libvidstab \
     libvmaf \

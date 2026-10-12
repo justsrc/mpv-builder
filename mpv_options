@@ -1,9 +1,11 @@
 -Dvideotoolbox-gl=enabled
 -Dcocoa=enabled
+-Dcaca=enabled
 -Dlcms2=enabled
 -Dlua=enabled
 -Djavascript=enabled
 -Dlibarchive=enabled
+-Dsixel=enabled
 -Dvapoursynth=enabled
 -Drubberband=enabled
 -Duchardet=enabled
