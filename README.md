@@ -23,11 +23,31 @@ rather than skip. Once a build is needed, the current `libdovi` and Cargo-C
 revisions choose exact caches: unchanged revisions are restored, while changed
 revisions are built once and saved for later runs.
 
-mpv is compiled with warnings as errors for C and ObjC (via `c_args` and
-`objc_args`, not meson's `--werror`, whose link-time `-Wl,-fatal_warnings`
-turns Homebrew's deployment-target warnings fatal) and its unit suite runs
-before the app is bundled. The bundled binary is then executed once, so a build
-that links cleanly but does not start still fails the run rather than shipping.
+mpv builds with warnings as errors for C and ObjC. That goes in `c_args` and
+`objc_args`, not in meson's `--werror`. Since meson 1.12, `--werror` also hands
+the linker `-Wl,-fatal_warnings`, ld64 offers no way to turn that back off, and
+every link here warns that Homebrew's dylibs were built for a newer macOS than
+our 12.0 target. `--werror` fails the build over warnings that no code change
+can fix.
+
+`mpv_options` also passes `-Dobjc_link_args=-framework Foundation`. Upstream's
+`test/paths` executable links `osdep/path-mac.m`, which uses `NSAutoreleasePool`,
+and never declares a Foundation dependency. Their build only gets away with it by
+accident: meson passes `-Wl,-dead_strip_dylibs`, but their test objects still
+reference libavutil, so `libavutil.dylib` stays in the load command list and its
+own dependencies pull Foundation in at launch. We build FFmpeg statically, so
+libavutil is an archive with no load commands, nothing pulls Foundation in, and
+the test dies with `dyld: symbol not found in flat namespace`. If those libavutil
+references ever go away upstream, dead-stripping drops the dylib and their CI
+hits the same crash, so treat this as latent rather than fixed.
+
+`objc_link_args` is the name that matters: meson links that test with the ObjC
+driver, because the `.m` object reaches the target through `extract_objects` and
+ObjC outranks C when meson picks a link language. Keep the flag either way. Our
+FFmpeg stays static, so it does the same work even after upstream fixes this.
+
+The unit suite runs before the app is bundled, and the bundled binary runs once,
+so a build that links cleanly but does not start still fails the run.
 
 The cask lives in the tap. Each run rewrites only its `version` and
 `sha256` stanzas. Adding a channel means adding the cask to the tap first, 
