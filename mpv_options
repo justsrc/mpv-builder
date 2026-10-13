@@ -1,5 +1,5 @@
---werror
--Dobjc_args=-Wno-error=deprecated -Wno-error=deprecated-declarations
+-Dc_args=-Werror
+-Dobjc_args=-Werror -Wno-error=deprecated -Wno-error=deprecated-declarations
 -Dtests=true
 -Dvideotoolbox-gl=enabled
 -Dcocoa=enabled

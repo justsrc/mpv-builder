@@ -23,9 +23,11 @@ rather than skip. Once a build is needed, the current `libdovi` and Cargo-C
 revisions choose exact caches: unchanged revisions are restored, while changed
 revisions are built once and saved for later runs.
 
-mpv is compiled with `-Werror` and its unit suite runs before the app is
-bundled. The bundled binary is then executed once, so a build that links
-cleanly but does not start still fails the run rather than shipping.
+mpv is compiled with warnings as errors for C and ObjC (via `c_args` and
+`objc_args`, not meson's `--werror`, whose link-time `-Wl,-fatal_warnings`
+turns Homebrew's deployment-target warnings fatal) and its unit suite runs
+before the app is bundled. The bundled binary is then executed once, so a build
+that links cleanly but does not start still fails the run rather than shipping.
 
 The cask lives in the tap. Each run rewrites only its `version` and
 `sha256` stanzas. Adding a channel means adding the cask to the tap first, 
