@@ -1,6 +1,8 @@
 -Dc_args=-Werror
 -Dobjc_args=-Werror -Wno-error=deprecated -Wno-error=deprecated-declarations
 -Dtests=true
+-Dc_link_args=-framework Foundation
+-Dobjc_link_args=-framework Foundation
 -Dvideotoolbox-gl=enabled
 -Dcocoa=enabled
 -Dcaca=enabled
