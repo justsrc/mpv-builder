@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
 from urllib.parse import quote
@@ -30,8 +31,13 @@ class _ReleaseData(TypedDict):
     assets: list[_Asset]
 
 
-class _BuildMetadata(TypedDict):
+class _BuildMetadata(TypedDict, total=False):
     workflow_number: str | int
+    mpv_version: str
+    mpv_sha: str
+    source_date_epoch: int | str
+    build_started_at: str
+    build_finished_at: str
 
 
 class _UpdateFormulaArgs(Protocol):
@@ -138,6 +144,44 @@ def write_output(name: str, value: str) -> None:
             _ = output.write(f"{name}={value}\n")
 
 
+def format_nightly_version(metadata: _BuildMetadata) -> str:
+    """Format a hyphenated nightly version string (e.g. '0.42.0-dev-20261109-gd9d402dc0').
+
+    The build date is placed between the base version and commit SHA so that
+    Homebrew's Version comparison evaluates monotonically across builds.
+    """
+    raw_version = str(metadata.get("mpv_version", "")).strip().removeprefix("v")
+    source_epoch = metadata.get("source_date_epoch")
+    date_str = ""
+    if source_epoch is not None:
+        try:
+            date_str = datetime.fromtimestamp(int(source_epoch), UTC).strftime("%Y%m%d")
+        except (ValueError, TypeError, OverflowError):
+            pass
+
+    if not date_str:
+        timestamp = str(metadata.get("build_started_at") or metadata.get("build_finished_at") or "")
+        match_date = re.match(r"^(\d{4})-(\d{2})-(\d{2})", timestamp)
+        if match_date:
+            date_str = f"{match_date.group(1)}{match_date.group(2)}{match_date.group(3)}"
+        else:
+            date_str = datetime.now(UTC).strftime("%Y%m%d")
+
+    if not raw_version:
+        workflow_number = metadata.get("workflow_number", "")
+        return f"nightly-{workflow_number}" if workflow_number else f"nightly-{date_str}"
+
+    match = re.match(r"^(.*?)-(g[0-9a-f]+)$", raw_version)
+    if match:
+        base, commit = match.group(1), match.group(2)
+        return f"{base}-{date_str}-{commit}"
+
+    mpv_sha = str(metadata.get("mpv_sha", ""))
+    commit_suffix = f"g{mpv_sha[:9]}" if mpv_sha else ""
+    parts = [raw_version, date_str, commit_suffix]
+    return "-".join(part for part in parts if part)
+
+
 def update_cask_content(cask_content: str, version: str, checksum: str, is_nightly: bool) -> str:
     """Rewrite only the `version` and `sha256` stanzas of an existing cask.
 
@@ -186,8 +230,7 @@ def main() -> int:
     if is_nightly:
         cask_path = Path("Casks/mpv@nightly.rb")
         cask_token = "mpv@nightly"
-        workflow_number = metadata["workflow_number"]
-        version = f"nightly-{workflow_number}"
+        version = format_nightly_version(metadata)
         commit_subject = f"{cask_token} {version}"
     else:
         cask_path = Path("Casks/mpv.rb")

@@ -18,7 +18,8 @@ printf '%s  %s\n' "$sha256" "$archive_name" > "$checksums_path"
 finished_epoch="$(date +%s)"
 duration_seconds="$((finished_epoch - BUILD_STARTED_EPOCH))"
 artifact_size_bytes="$(stat -f %z "$archive_path")"
-export archive_name sha256 duration_seconds artifact_size_bytes finished_epoch
+mpv_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle_path/Contents/Info.plist" 2>/dev/null || true)"
+export archive_name sha256 duration_seconds artifact_size_bytes finished_epoch mpv_version
 
 python3 - "$metadata_path" <<'PY'
 import json
@@ -46,6 +47,7 @@ metadata = {
     "macos_version": subprocess.run(["sw_vers", "-productVersion"], check=True, capture_output=True, text=True).stdout.strip(),
     "mpv_build_sha": os.environ["MPV_BUILD_SHA"],
     "mpv_sha": os.environ["MPV_SHA"],
+    "mpv_version": os.environ.get("mpv_version", ""),
     "sha256": os.environ["sha256"],
     "source_date_epoch": int(os.environ["SOURCE_DATE_EPOCH"]),
     "workflow_number": os.environ["GITHUB_RUN_NUMBER"],
@@ -63,5 +65,6 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     printf 'sha256=%s\n' "$sha256"
     printf 'duration_seconds=%s\n' "$duration_seconds"
     printf 'artifact_size_bytes=%s\n' "$artifact_size_bytes"
+    printf 'mpv_version=%s\n' "$mpv_version"
   } >> "$GITHUB_OUTPUT"
 fi

@@ -8,7 +8,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Protocol, TypedDict, cast
+from typing import NotRequired, Protocol, TypedDict, cast
 
 
 class _BuildMetadata(TypedDict):
@@ -25,6 +25,7 @@ class _BuildMetadata(TypedDict):
     build_duration_seconds: str | int
     artifact: str
     sha256: str
+    mpv_version: NotRequired[str]
 
 
 class _ReleaseNotesArgs(Protocol):
@@ -44,7 +45,13 @@ def changelog(repository: str, previous: str, current: str) -> str:
         return "No changes recorded."
 
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).with_name("compare_sha.py")), repository, previous, current],
+        [
+            sys.executable,
+            str(Path(__file__).with_name("compare_sha.py")),
+            repository,
+            previous,
+            current,
+        ],
         check=True,
         capture_output=True,
         text=True,
@@ -79,9 +86,11 @@ def main() -> int:
             print(err, file=sys.stderr, end="")
         return error.returncode
 
+    mpv_ver = metadata.get("mpv_version")
+    version_line = f"- mpv version: `{mpv_ver}`\n" if mpv_ver else ""
     notes = f"""## {args_typed.title}
 
-- Build timestamp: {metadata['build_finished_at']}
+{version_line}- Build timestamp: {metadata['build_finished_at']}
 - Workflow number: {metadata['workflow_number']}
 - GitHub Actions run: {metadata['github_actions_run_url']}
 - Build duration: {metadata['build_duration_seconds']} seconds

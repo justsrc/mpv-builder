@@ -411,6 +411,7 @@ jobs:
           CHANGED: ${{ needs.check-upstream.outputs.should_build }}
           DURATION: ${{ steps.package.outputs.duration_seconds }}
           ARTIFACT_SIZE: ${{ steps.package.outputs.artifact_size_bytes }}
+          MPV_VERSION: ${{ steps.package.outputs.mpv_version }}
           RELEASE_URL: ${{ steps.publish.outputs.release_url }}
           TAP_PR_URL: ${{ steps.tap.outputs.tap_pr_url }}
           WORKFLOW_STATUS: ${{ job.status }}
@@ -418,6 +419,7 @@ jobs:
           {
             echo '## mpv build summary'
             echo
+            [[ -n "${MPV_VERSION:-}" ]] && echo "- mpv version: \`$MPV_VERSION\`" || true
             echo "- Changed: ${CHANGED:-unknown}"
             echo "- Built: $([[ -n "${DURATION:-}" ]] && echo yes || echo no)"
             echo '- Skipped: no'
