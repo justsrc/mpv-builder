@@ -46,6 +46,7 @@ class _UpdateFormulaArgs(Protocol):
     sha256: str | None
     mpv_sha: str
     mpv_build_sha: str
+    notes_file: Path | None
 
 
 def run(
@@ -213,6 +214,7 @@ def main() -> int:
     _ = parser.add_argument("--sha256")
     _ = parser.add_argument("--mpv-sha", default="")
     _ = parser.add_argument("--mpv-build-sha", default="")
+    _ = parser.add_argument("--notes-file", type=Path, default=None)
     args = parser.parse_args()
     args_typed = cast(_UpdateFormulaArgs, cast(object, args))
 
@@ -303,18 +305,48 @@ def main() -> int:
             ],
             cwd=tap_directory,
         )
-        message = ["git", "commit", "-m", commit_subject]
-        build_info = ""
-        if args_typed.mpv_sha and args_typed.mpv_build_sha:
-            build_info = (
-                f"Upstream revisions:\n\nmpv: {args_typed.mpv_sha}\n"
-                f"mpv-build: {args_typed.mpv_build_sha}"
-            )
-            message.extend(["-m", build_info])
+        repo_name = os.getenv("GITHUB_REPOSITORY") or "justsrc/mpv-builder"
+        release_link = (
+            f"https://github.com/{repo_name}/releases/tag/{args_typed.release_tag}"
+        )
+        commit_message = (
+            f"Update {cask_token} cask to {version}\n\nAutomated update from {release_link}."
+        )
+        message = ["git", "commit", "-m", commit_subject, "-m", commit_message]
         _ = run(message, cwd=tap_directory)
         _ = run(["git", "push", "-u", "origin", branch_name], cwd=tap_directory)
 
-        pr_body = build_info or f"Update the `{cask_token}` cask to `{version}`."
+        notes_content = ""
+        if args_typed.notes_file and args_typed.notes_file.is_file():
+            notes_content = args_typed.notes_file.read_text(encoding="utf-8").strip()
+        elif is_nightly:
+            try:
+                notes_content = run(
+                    [
+                        "gh",
+                        "release",
+                        "view",
+                        args_typed.release_tag,
+                        "--json",
+                        "body",
+                        "--jq",
+                        ".body",
+                    ],
+                    env=clone_env,
+                )
+            except subprocess.CalledProcessError:
+                notes_content = ""
+
+        if notes_content:
+            pr_body = (
+                f"Update `{cask_token}` to `{version}`.\n\n"
+                f"Release: {release_link}\n\n"
+                "---\n\n"
+                f"{notes_content}"
+            )
+        else:
+            pr_body = f"Update `{cask_token}` to `{version}`.\n\nRelease: {release_link}"
+
         pr_args = [
             "gh",
             "pr",

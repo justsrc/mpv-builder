@@ -41,10 +41,13 @@ def compare(repository: str, previous: str, current: str) -> str:
     )
     raw_data = cast(_CompareResponse, json.loads(result.stdout))
     commits: list[_Commit] = raw_data.get("commits", [])
-    return "\n".join(
-        f"- [{commit['sha'][:7]}](https://github.com/{repository}/commit/{commit['sha']}) {commit['commit']['message'].splitlines()[0]}"
-        for commit in commits
-    )
+    entries: list[str] = []
+    for commit in commits:
+        sha = commit["sha"]
+        short = sha[:7]
+        msg = commit["commit"]["message"].splitlines()[0]
+        entries.append(f"- [{short}](https://github.com/{repository}/commit/{sha}) {msg}")
+    return "\n".join(entries)
 
 
 def main() -> int:

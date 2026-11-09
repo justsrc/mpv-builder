@@ -37,7 +37,18 @@ class _ReleaseNotesArgs(Protocol):
     previous_ffmpeg: str
     previous_libass: str
     previous_libplacebo: str
+    previous_libdovi: str
     custom_notes: str
+
+
+UPSTREAM_PROJECTS = (
+    ("mpv", "mpv-player/mpv", "mpv_sha", "previous_mpv"),
+    ("FFmpeg", "FFmpeg/FFmpeg", "ffmpeg_sha", "previous_ffmpeg"),
+    ("libplacebo", "haasn/libplacebo", "libplacebo_sha", "previous_libplacebo"),
+    ("libass", "libass/libass", "libass_sha", "previous_libass"),
+    ("libdovi", "quietvoid/dovi_tool", "libdovi_sha", "previous_libdovi"),
+    ("mpv-build", "mpv-player/mpv-build", "mpv_build_sha", "previous_mpv_build"),
+)
 
 
 def changelog(repository: str, previous: str, current: str) -> str:
@@ -69,22 +80,28 @@ def main() -> int:
     _ = parser.add_argument("--previous-ffmpeg", default="")
     _ = parser.add_argument("--previous-libass", default="")
     _ = parser.add_argument("--previous-libplacebo", default="")
+    _ = parser.add_argument("--previous-libdovi", default="")
     _ = parser.add_argument("--custom-notes", default="")
     args = parser.parse_args()
     args_typed = cast(_ReleaseNotesArgs, cast(object, args))
 
     metadata_text: str = args_typed.metadata.read_text(encoding="utf-8")
     metadata: _BuildMetadata = cast(_BuildMetadata, json.loads(metadata_text))
-    try:
-        mpv_changes = changelog("mpv-player/mpv", args_typed.previous_mpv, metadata["mpv_sha"])
-        mpv_build_changes = changelog(
-            "mpv-player/mpv-build", args_typed.previous_mpv_build, metadata["mpv_build_sha"]
-        )
-    except subprocess.CalledProcessError as error:
-        err = cast(str | None, cast(object, error.stderr))
-        if err is not None:
-            print(err, file=sys.stderr, end="")
-        return error.returncode
+
+    sections: list[str] = []
+    for label, repo, current_key, prev_arg_attr in UPSTREAM_PROJECTS:
+        prev_sha = str(getattr(args_typed, prev_arg_attr, ""))
+        curr_sha = str(metadata.get(current_key, ""))
+        try:
+            changes = changelog(repo, prev_sha, curr_sha)
+        except subprocess.CalledProcessError as error:
+            err = cast(str | None, cast(object, error.stderr))
+            if err is not None:
+                print(err, file=sys.stderr, end="")
+            changes = "Could not retrieve commit list."
+        sections.append(f"## {label} changes\n\n{changes}")
+
+    changes_notes = "\n\n".join(sections)
 
     mpv_ver = metadata.get("mpv_version")
     version_line = f"- mpv version: `{mpv_ver}`\n" if mpv_ver else ""
@@ -103,13 +120,7 @@ def main() -> int:
 - cargo-c SHA: {metadata['cargo_c_sha']}
 - SHA256 (`{metadata['artifact']}`): `{metadata['sha256']}`
 
-## mpv upstream changes
-
-{mpv_changes}
-
-## mpv-build upstream changes
-
-{mpv_build_changes}
+{changes_notes}
 """
     if args_typed.custom_notes.strip():
         notes += f"\n## Release notes\n\n{args_typed.custom_notes.strip()}\n"
