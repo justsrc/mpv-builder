@@ -10,7 +10,6 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
-
 UPSTREAMS = {
     "mpv": "https://github.com/mpv-player/mpv.git",
     "mpv_build": "https://github.com/mpv-player/mpv-build.git",
@@ -24,7 +23,8 @@ UPSTREAMS = {
 # Revisions that decide what actually ends up in the binary. mpv-build
 # tracks master for ffmpeg, libass and libplacebo unless a branch pin says
 # otherwise, so each one has to be pinned and watched like mpv itself.
-PINNED = ("mpv", "mpv_build", "ffmpeg", "libass", "libplacebo")
+# libdovi provides Dolby Vision support and is compiled directly into the binary.
+PINNED = ("mpv", "mpv_build", "ffmpeg", "libass", "libplacebo", "libdovi")
 
 
 def release_label(name: str) -> str:
@@ -54,7 +54,8 @@ def previous_nightly_body() -> str:
 
 
 def recorded_sha(body: str, name: str) -> str:
-    match = re.search(rf"^\s*(?:[-*]\s+)?{re.escape(name)} SHA:\s*([0-9a-f]+)\s*$", body, re.MULTILINE)
+    pattern = rf"^\s*(?:[-*]\s+)?{re.escape(name)} SHA:\s*([0-9a-f]+)\s*$"
+    match = re.search(pattern, body, re.MULTILINE)
     return match.group(1) if match else ""
 
 
@@ -84,7 +85,6 @@ def main() -> int:
     for name in PINNED:
         outputs[f"{name}_sha"] = current[name]
         outputs[f"previous_{name}_sha"] = previous[name]
-    outputs["libdovi_sha"] = current["libdovi"]
     outputs["cargo_c_sha"] = current["cargo_c"]
     outputs["checked_at"] = timestamp
     write_outputs(outputs)

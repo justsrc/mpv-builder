@@ -62,6 +62,7 @@ jobs:
       previous_ffmpeg_sha: ${{ steps.check.outputs.previous_ffmpeg_sha }}
       previous_libass_sha: ${{ steps.check.outputs.previous_libass_sha }}
       previous_libplacebo_sha: ${{ steps.check.outputs.previous_libplacebo_sha }}
+      previous_libdovi_sha: ${{ steps.check.outputs.previous_libdovi_sha }}
 
     steps:
       - name: Check out pipeline source
