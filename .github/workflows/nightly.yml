@@ -299,21 +299,67 @@ jobs:
           CHECKSUMS_PATH: ${{ steps.package.outputs.checksums_path }}
           METADATA_PATH: ${{ steps.package.outputs.metadata_path }}
         run: |
-          release_url=
           release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
+
+          # Upload one asset at a time, each with its own retry. gh's internal retry
+          # re-streams a body whose upload already committed server-side and then dies
+          # on 422 "ReleaseAsset.name already exists" (cli/cli#7178), killing every
+          # other asset in the batch. A fresh --clobber invocation per attempt deletes
+          # the ghost asset left by the previous attempt and re-uploads cleanly.
+          upload_asset() {
+            local asset="$1"
+            local attempt delay
+            for attempt in 1 2 3; do
+              echo "Uploading $(basename "$asset") (attempt $attempt/3)..."
+              if gh release upload "$RELEASE_TAG" "$asset" --clobber; then
+                return 0
+              fi
+              if [[ $attempt -lt 3 ]]; then
+                case $attempt in
+                  1) delay=5 ;;
+                  2) delay=15 ;;
+                esac
+                echo "Upload of $(basename "$asset") failed; retrying in ${delay}s..." >&2
+                sleep "$delay"
+              fi
+            done
+            echo "Failed to upload $(basename "$asset") after 3 attempts." >&2
+            return 1
+          }
+
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             if [[ "$RELEASE_KIND" == release ]]; then
               echo "Versioned release $RELEASE_TAG already exists." >&2
               exit 1
             fi
-            gh release upload "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" --clobber
             gh release edit "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md"
           else
             args=(--title "$RELEASE_TITLE" --notes-file "$RUNNER_TEMP/release-notes.md")
             [[ "$RELEASE_DRAFT" == true ]] && args+=(--draft)
             [[ "$RELEASE_PRERELEASE" == true ]] && args+=(--prerelease)
-            gh release create "$RELEASE_TAG" "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH" --target "$GITHUB_SHA" "${args[@]}"
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" "${args[@]}"
           fi
+
+          for asset in "$ARCHIVE_PATH" "$CHECKSUMS_PATH" "$METADATA_PATH"; do
+            upload_asset "$asset"
+          done
+
+          # Confirm the published set actually landed complete: gh can exit 0 while an
+          # asset is still in "starter" state server-side, which would silently ship a
+          # broken archive. A listing that cannot be read is logged and skipped rather
+          # than adding a new failure mode to the release.
+          incomplete_assets="$RUNNER_TEMP/incomplete-assets.txt"
+          if gh release view "$RELEASE_TAG" --json assets \
+            --jq '.assets[] | select(.state != "uploaded") | .name' > "$incomplete_assets"; then
+            if [[ -s "$incomplete_assets" ]]; then
+              echo "Incomplete assets detected:" >&2
+              cat "$incomplete_assets" >&2
+              exit 1
+            fi
+          else
+            echo "WARNING: could not list release assets; skipping completeness check." >&2
+          fi
+
           if [[ "$RELEASE_KIND" == nightly ]]; then
             git tag --force "$RELEASE_TAG" "$GITHUB_SHA"
             git push --force origin "refs/tags/$RELEASE_TAG"
