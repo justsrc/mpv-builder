@@ -1,7 +1,7 @@
 -Dc_args=-Werror
 -Dobjc_args=-Werror -Wno-error=deprecated -Wno-error=deprecated-declarations
 -Dtests=true
--Dobjc_link_args=-framework Foundation
+-Dobjc_link_args=-framework Foundation -L/opt/homebrew/lib
 -Dvideotoolbox-gl=enabled
 -Dcocoa=enabled
 -Dcaca=enabled
