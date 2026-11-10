@@ -219,6 +219,17 @@ jobs:
           ./build
           popd >/dev/null
 
+      - name: Check dependency resolvability
+        if: always()
+        run: |
+          pkgconfig_dir="$MPV_BUILD_ROOT/build_libs/lib/pkgconfig"
+          if [ ! -d "$pkgconfig_dir" ]; then
+            echo "No pkg-config files in $pkgconfig_dir, skipping"
+            exit 0
+          fi
+          python3 "$GITHUB_WORKSPACE/scripts/check_link_deps.py" "$pkgconfig_dir" \
+            --options "$GITHUB_WORKSPACE/mpv_options"
+
       - name: Run mpv unit tests
         run: |
           pushd "$MPV_BUILD_ROOT/mpv" >/dev/null
