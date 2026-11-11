@@ -14,7 +14,6 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
-from urllib.parse import quote
 
 VERSION_STANZA = re.compile(r'^([ \t]*)version[ \t]+["\'][^"\']*["\'].*$', re.MULTILINE)
 SHA256_STANZA = re.compile(
@@ -244,13 +243,31 @@ def main() -> int:
         tap_directory = Path(directory, "tap")
         clone_env = os.environ | {"GH_TOKEN": token}
         _ = run(["gh", "repo", "clone", tap_repo, str(tap_directory)], env=clone_env)
+        # Authenticate the push without ever putting the token in the remote
+        # URL. A credential in the URL is readable from .git/config, shows up
+        # in the process argument list, and lands in the CalledProcessError
+        # message if the push fails, which the CI log prints.
+        #
+        # Instead, git asks a credential helper, and the helper reads the
+        # token from the environment at the moment git needs it. The token
+        # therefore never appears in a command line, in a file, or in an
+        # error message.
+        #
+        # `gh auth git-credential` serves GH_TOKEN from the environment, and
+        # GH_TOKEN outranks GITHUB_TOKEN, so the push uses the tap token
+        # rather than the workflow's own GITHUB_TOKEN.
+        #
+        # The empty credential.helper resets any helper inherited from the
+        # machine's global config, so the only helper in play is the one
+        # below.
+        _ = run(["git", "config", "--local", "credential.helper", ""], cwd=tap_directory)
         _ = run(
             [
                 "git",
-                "remote",
-                "set-url",
-                "origin",
-                f"https://x-access-token:{quote(token)}@github.com/{tap_repo}.git",
+                "config",
+                "--local",
+                "credential.https://github.com.helper",
+                "!gh auth git-credential",
             ],
             cwd=tap_directory,
         )
@@ -314,7 +331,14 @@ def main() -> int:
         )
         message = ["git", "commit", "-m", commit_subject, "-m", commit_message]
         _ = run(message, cwd=tap_directory)
-        _ = run(["git", "push", "-u", "origin", branch_name], cwd=tap_directory)
+        # The push runs with clone_env so the credential helper sees the tap
+        # token in GH_TOKEN. The step's own GH_TOKEN is the workflow token for
+        # this repository, which cannot write to the tap.
+        _ = run(
+            ["git", "push", "-u", "origin", branch_name],
+            cwd=tap_directory,
+            env=clone_env,
+        )
 
         notes_content = ""
         if args_typed.notes_file and args_typed.notes_file.is_file():
