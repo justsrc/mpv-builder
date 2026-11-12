@@ -147,25 +147,23 @@ def write_output(name: str, value: str) -> None:
 def format_nightly_version(metadata: _BuildMetadata) -> str:
     """Format a hyphenated nightly version string (e.g. '0.42.0-dev-20261109-gd9d402dc0').
 
-    The build date is placed between the base version and commit SHA so that
-    Homebrew's Version comparison evaluates monotonically across builds.
+    The date token is the day the build ran, not the mpv commit date: mpv can
+    sit still for days while ffmpeg or libplacebo keep moving, and keying the
+    date on the mpv commit would leave those dependency-only builds with a
+    version identical to the previous one — the cask would not change, no PR
+    would open, and Homebrew users would be stranded until the next mpv
+    commit. The build date is placed between the base version and commit SHA
+    so that Homebrew's Version comparison evaluates monotonically across
+    builds.
     """
     raw_version = str(metadata.get("mpv_version", "")).strip().removeprefix("v")
-    source_epoch = metadata.get("source_date_epoch")
-    date_str = ""
-    if source_epoch is not None:
-        try:
-            date_str = datetime.fromtimestamp(int(source_epoch), UTC).strftime("%Y%m%d")
-        except (ValueError, TypeError, OverflowError):
-            pass
 
-    if not date_str:
-        timestamp = str(metadata.get("build_started_at") or metadata.get("build_finished_at") or "")
-        match_date = re.match(r"^(\d{4})-(\d{2})-(\d{2})", timestamp)
-        if match_date:
-            date_str = f"{match_date.group(1)}{match_date.group(2)}{match_date.group(3)}"
-        else:
-            date_str = datetime.now(UTC).strftime("%Y%m%d")
+    timestamp = str(metadata.get("build_started_at") or metadata.get("build_finished_at") or "")
+    match_date = re.match(r"^(\d{4})-(\d{2})-(\d{2})", timestamp)
+    if match_date:
+        date_str = f"{match_date.group(1)}{match_date.group(2)}{match_date.group(3)}"
+    else:
+        date_str = datetime.now(UTC).strftime("%Y%m%d")
 
     if not raw_version:
         workflow_number = metadata.get("workflow_number", "")
